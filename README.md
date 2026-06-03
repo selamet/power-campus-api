@@ -54,6 +54,9 @@ Only `admin` and `manager` accounts can sign in for now; `teacher` and
 | POST   | `/students`                   | Admin/Manager  | Create a student           |
 | PATCH  | `/students/{code}/approve`    | Admin/Manager  | Approve a pending student  |
 | PATCH  | `/students/{code}/reject`     | Admin/Manager  | Reject (delete) a student  |
+| POST   | `/invites`                    | Admin/Manager  | Create a welcome-form link |
+| GET    | `/invites/{tckn}`             | —              | Public: prefill data       |
+| POST   | `/invites/{tckn}/submit`      | —              | Public: submit welcome form|
 
 ## Connecting the frontend
 
