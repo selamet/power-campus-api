@@ -12,6 +12,9 @@ from datetime import date
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.apps.payments.models import Payment
+from app.apps.payments.schedule import allocate, next_due_date
+from app.apps.payments.service import PaymentService
 from app.apps.students.models import Enrollment, EnrollmentStatus, Student, StudentSource
 from app.apps.users.models import User, UserRole
 from app.core.config import settings
@@ -104,6 +107,28 @@ async def _ensure_user(
     return user
 
 
+async def _seed_schedules(session: AsyncSession) -> None:
+    """Build an installment schedule per enrollment and back its paid amount
+    with an opening payment record."""
+    payments = PaymentService(session)
+    enrollments = list(await session.scalars(select(Enrollment)))
+    for enrollment in enrollments:
+        installments = payments.generate_schedule(enrollment)
+        if enrollment.paid:
+            session.add(
+                Payment(
+                    enrollment_id=enrollment.id,
+                    amount=enrollment.paid,
+                    paid_at=enrollment.start_at,
+                    method="Banka Havalesi / EFT",
+                    note="Açılış tahsilatı",
+                )
+            )
+            allocate(enrollment.paid, installments)
+            enrollment.next_payment_at = next_due_date(installments)
+    await session.commit()
+
+
 async def seed() -> None:
     async with AsyncSessionLocal() as session:
         admin = await _ensure_user(
@@ -129,9 +154,11 @@ async def seed() -> None:
 
         student_count = await session.scalar(select(func.count()).select_from(Student))
         if not student_count:
-            session.add_all(_sample_students())
+            students = _sample_students()
+            session.add_all(students)
             await session.commit()
-            print(f"Seeded {len(_sample_students())} students.")
+            await _seed_schedules(session)
+            print(f"Seeded {len(students)} students with installment schedules.")
         else:
             print(f"Students already present ({student_count}); skipped.")
 
