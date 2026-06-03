@@ -37,6 +37,24 @@ class Student(AuditedBase):
     email: Mapped[str] = mapped_column(String(255), nullable=False)
     phone: Mapped[str] = mapped_column(String(32), nullable=False)
     joined_at: Mapped[date] = mapped_column("joinedAt", Date, nullable=False)
+
+    # Extended profile, collected by the manual and self-service (welcome)
+    # registration forms. All optional so existing records stay valid.
+    tckn: Mapped[str | None] = mapped_column(String(11), nullable=True)
+    birth_date: Mapped[date | None] = mapped_column("birthDate", Date, nullable=True)
+    gender: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    city: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    address: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    education_level: Mapped[str | None] = mapped_column("educationLevel", String(32), nullable=True)
+    school: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    department: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    grade: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    contact_name: Mapped[str | None] = mapped_column("contactName", String(255), nullable=True)
+    contact_relation: Mapped[str | None] = mapped_column(
+        "contactRelation", String(32), nullable=True
+    )
+    contact_phone: Mapped[str | None] = mapped_column("contactPhone", String(32), nullable=True)
+
     source: Mapped[StudentSource | None] = mapped_column(
         Enum(
             StudentSource,
