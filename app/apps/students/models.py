@@ -1,0 +1,90 @@
+"""Student (person) and Enrollment (course registration + finance) models."""
+
+import enum
+from datetime import date
+
+from sqlalchemy import Date, Enum, ForeignKey, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.core.base import AuditedBase
+
+
+class StudentSource(enum.StrEnum):
+    """How the student record entered the system."""
+
+    invite = "davet"
+    manual = "manuel"
+
+
+class EnrollmentStatus(enum.StrEnum):
+    """Lifecycle of a course registration."""
+
+    active = "active"
+    pending = "pending"
+    inactive = "inactive"
+
+
+class Student(AuditedBase):
+    """A person enrolled (or invited to enroll) at the academy."""
+
+    __tablename__ = "students"
+
+    # Public, human-readable identifier exposed by the API (e.g. "PA-1042").
+    student_code: Mapped[str] = mapped_column(
+        "studentCode", String(16), unique=True, index=True, nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    email: Mapped[str] = mapped_column(String(255), nullable=False)
+    phone: Mapped[str] = mapped_column(String(32), nullable=False)
+    joined_at: Mapped[date] = mapped_column("joinedAt", Date, nullable=False)
+    source: Mapped[StudentSource | None] = mapped_column(
+        Enum(
+            StudentSource,
+            name="studentSource",
+            native_enum=False,
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        ),
+        nullable=True,
+    )
+    # Reserved for a future student login; unused while students don't sign in.
+    user_id: Mapped[int | None] = mapped_column(
+        "userId", ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+    enrollments: Mapped[list["Enrollment"]] = relationship(
+        back_populates="student",
+        cascade="all, delete-orphan",
+        order_by="Enrollment.id",
+    )
+
+
+class Enrollment(AuditedBase):
+    """A student's registration to a course, including its finance details."""
+
+    __tablename__ = "enrollments"
+
+    student_id: Mapped[int] = mapped_column(
+        "studentId",
+        ForeignKey("students.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    lang: Mapped[str] = mapped_column(String(64), nullable=False)
+    level: Mapped[str] = mapped_column(String(64), nullable=False)
+    course: Mapped[str] = mapped_column(String(64), nullable=False)
+    plan: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[EnrollmentStatus] = mapped_column(
+        Enum(
+            EnrollmentStatus,
+            name="enrollmentStatus",
+            native_enum=False,
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        ),
+        nullable=False,
+    )
+    fee: Mapped[int] = mapped_column(Integer, nullable=False)
+    paid: Mapped[int] = mapped_column(Integer, server_default="0", nullable=False)
+    next_payment_at: Mapped[date | None] = mapped_column("nextPaymentAt", Date, nullable=True)
+    start_at: Mapped[date] = mapped_column("startAt", Date, nullable=False)
+
+    student: Mapped["Student"] = relationship(back_populates="enrollments")
