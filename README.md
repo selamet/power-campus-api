@@ -39,7 +39,7 @@ uvicorn app.main:app --reload
 | Role    | Email                          | Password       |
 | ------- | ------------------------------ | -------------- |
 | Admin   | `admin@powerakademi.com`       | `admin1234`    |
-| Manager | `elif.demir@powerakademi.com`  | `manager1234`  |
+| Manager | `elif.demir@powerakademi.com`  | `demo1234`     |
 
 Only `admin` and `manager` accounts can sign in for now; `teacher` and
 `student` are records without login.

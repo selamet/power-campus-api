@@ -20,7 +20,7 @@ from app.core.db import AsyncSessionLocal
 from app.core.security import hash_password
 
 MANAGER_EMAIL = "elif.demir@powerakademi.com"
-MANAGER_PASSWORD = "manager1234"
+MANAGER_PASSWORD = "demo1234"
 
 
 def _student(
