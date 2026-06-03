@@ -57,6 +57,9 @@ Only `admin` and `manager` accounts can sign in for now; `teacher` and
 | POST   | `/invites`                    | Admin/Manager  | Create a welcome-form link |
 | GET    | `/invites/{tckn}`             | —              | Public: prefill data       |
 | POST   | `/invites/{tckn}/submit`      | —              | Public: submit welcome form|
+| GET    | `/students/{code}/installments` | Bearer       | Installment schedule       |
+| GET    | `/students/{code}/payments`   | Bearer         | Collected payments         |
+| POST   | `/students/{code}/payments`   | Admin/Manager  | Record a payment           |
 
 ## Connecting the frontend
 
