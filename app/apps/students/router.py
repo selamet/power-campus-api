@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
-from app.apps.students.schemas import NewStudentInput, StudentOut
+from app.apps.students.schemas import NewStudentInput, StudentOut, StudentUpdate
 from app.apps.students.service import StudentNotFoundError, StudentService
 from app.apps.users.models import User, UserRole
 from app.core.deps import CurrentUser, SessionDep, require_roles
@@ -27,6 +27,16 @@ async def create_student(
     payload: NewStudentInput, session: SessionDep, _: AdminOrManager
 ) -> StudentOut:
     return await StudentService(session).create_student(payload)
+
+
+@router.patch("/{code}", response_model=StudentOut)
+async def update_student(
+    code: str, payload: StudentUpdate, session: SessionDep, _: AdminOrManager
+) -> StudentOut:
+    try:
+        return await StudentService(session).update_student(code, payload)
+    except StudentNotFoundError:
+        raise _NOT_FOUND from None
 
 
 @router.patch("/{code}/approve", response_model=StudentOut)

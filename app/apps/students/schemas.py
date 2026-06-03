@@ -55,6 +55,38 @@ class StudentOut(CamelModel):
         )
 
 
+class StudentUpdate(CamelModel):
+    """Partial update of a student and their current enrollment.
+
+    Only the fields present in the request are applied (``exclude_unset``).
+    """
+
+    name: str | None = None
+    email: EmailStr | None = None
+    phone: str | None = None
+    lang: str | None = None
+    level: str | None = None
+    course: str | None = None
+    plan: str | None = None
+    status: EnrollmentStatus | None = None
+    fee: int | None = Field(default=None, ge=0)
+    paid: int | None = Field(default=None, ge=0)
+    next: date | None = None
+    start: date | None = None
+    tckn: str | None = None
+    birth_date: date | None = None
+    gender: str | None = None
+    city: str | None = None
+    address: str | None = None
+    education_level: str | None = None
+    school: str | None = None
+    department: str | None = None
+    grade: str | None = None
+    contact_name: str | None = None
+    contact_relation: str | None = None
+    contact_phone: str | None = None
+
+
 class NewStudentInput(CamelModel):
     """Payload for manually creating a student (mirrors `NewStudentInput`)."""
 
