@@ -75,8 +75,13 @@ class StudentService:
         return StudentOut.from_models(student)
 
     async def approve_student(self, code: str) -> StudentOut:
+        # Imported here to avoid a circular import with the payments service.
+        from app.apps.payments.service import PaymentService
+
         student = await self._get_or_404(code)
-        student.enrollments[-1].status = EnrollmentStatus.active
+        enrollment = student.enrollments[-1]
+        enrollment.status = EnrollmentStatus.active
+        await PaymentService(self._session).ensure_schedule(enrollment)
         await self._session.commit()
         return StudentOut.from_models(student)
 

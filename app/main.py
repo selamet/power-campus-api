@@ -12,6 +12,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.apps.auth.router import router as auth_router
 from app.apps.dashboard.router import router as dashboard_router
 from app.apps.invites.router import router as invites_router
+from app.apps.payments.router import router as payments_router
 from app.apps.students.router import router as students_router
 from app.core.config import settings
 
@@ -54,6 +55,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router, prefix=settings.api_v1_prefix)
     app.include_router(students_router, prefix=settings.api_v1_prefix)
     app.include_router(invites_router, prefix=settings.api_v1_prefix)
+    app.include_router(payments_router, prefix=settings.api_v1_prefix)
     app.include_router(dashboard_router, prefix=settings.api_v1_prefix)
 
     @app.get("/health", tags=["health"])
