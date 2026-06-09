@@ -52,6 +52,7 @@ Only `admin` and `manager` accounts can sign in for now; `teacher` and
 | GET    | `/auth/me`                    | Bearer         | Current user               |
 | GET    | `/students`                   | Bearer         | List students              |
 | POST   | `/students`                   | Admin/Manager  | Create a student           |
+| PATCH  | `/students/{code}`            | Admin/Manager  | Update student details     |
 | PATCH  | `/students/{code}/approve`    | Admin/Manager  | Approve a pending student  |
 | PATCH  | `/students/{code}/reject`     | Admin/Manager  | Reject (delete) a student  |
 | POST   | `/invites`                    | Admin/Manager  | Create a welcome-form link |
@@ -60,6 +61,8 @@ Only `admin` and `manager` accounts can sign in for now; `teacher` and
 | GET    | `/students/{code}/installments` | Bearer       | Installment schedule       |
 | GET    | `/students/{code}/payments`   | Bearer         | Collected payments         |
 | POST   | `/students/{code}/payments`   | Admin/Manager  | Record a payment           |
+| GET    | `/dashboard/stats`            | Bearer         | Summary metrics            |
+| GET    | `/dashboard/activity`         | Bearer         | Recent activity feed       |
 
 ## Connecting the frontend
 
