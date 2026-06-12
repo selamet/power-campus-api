@@ -112,3 +112,5 @@ class NewStudentInput(CamelModel):
     source: StudentSource | None = StudentSource.manual
     terms: int = Field(default=1, ge=1)
     note: str | None = None
+    # Method of the opening payment, when one was collected at registration.
+    pay_method: str | None = None

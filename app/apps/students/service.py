@@ -1,5 +1,7 @@
 """Student management use cases."""
 
+from datetime import date
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.apps.students.models import Enrollment, EnrollmentStatus, Student
@@ -58,6 +60,21 @@ class StudentService:
             )
         )
         self._repo.add(student)
+        if payload.paid:
+            # Keep the opening payment in the collection history so later
+            # totals (which sum payment rows) include it.
+            from app.apps.payments.models import Payment
+
+            await self._session.flush()
+            self._session.add(
+                Payment(
+                    enrollment_id=student.enrollments[-1].id,
+                    amount=payload.paid,
+                    paid_at=date.today(),
+                    method=payload.pay_method or "Nakit",
+                    note="Açılış tahsilatı",
+                )
+            )
         await self._session.commit()
         return StudentOut.from_models(student)
 

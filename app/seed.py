@@ -13,7 +13,6 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.apps.payments.models import Payment
-from app.apps.payments.schedule import allocate, next_due_date
 from app.apps.payments.service import PaymentService
 from app.apps.students.models import Enrollment, EnrollmentStatus, Student, StudentSource
 from app.apps.users.models import User, UserRole
@@ -109,11 +108,15 @@ async def _ensure_user(
 
 async def _seed_schedules(session: AsyncSession) -> None:
     """Build an installment schedule per enrollment and back its paid amount
-    with an opening payment record."""
+    with an opening payment record.
+
+    ``generate_schedule`` already deducts the opening payment, so the
+    installments cover only the remaining balance — no allocation needed.
+    """
     payments = PaymentService(session)
     enrollments = list(await session.scalars(select(Enrollment)))
     for enrollment in enrollments:
-        installments = payments.generate_schedule(enrollment)
+        payments.generate_schedule(enrollment)
         if enrollment.paid:
             session.add(
                 Payment(
@@ -124,8 +127,6 @@ async def _seed_schedules(session: AsyncSession) -> None:
                     note="Açılış tahsilatı",
                 )
             )
-            allocate(enrollment.paid, installments)
-            enrollment.next_payment_at = next_due_date(installments)
     await session.commit()
 
 

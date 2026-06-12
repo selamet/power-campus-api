@@ -20,8 +20,14 @@ class PaymentService:
         self._students = StudentRepository(session)
 
     def generate_schedule(self, enrollment: Enrollment) -> list[Installment]:
-        """Create the installment rows for an enrollment and set its next due date."""
-        rows = build_schedule(enrollment.fee, enrollment.plan, enrollment.start_at)
+        """Create the installment rows for an enrollment and set its next due date.
+
+        Anything already collected (the opening payment) is deducted up front,
+        so the installments split the remaining balance equally instead of the
+        full fee.
+        """
+        financed = max(enrollment.fee - enrollment.paid, 0)
+        rows = build_schedule(financed, enrollment.plan, enrollment.start_at) if financed else []
         installments = [
             Installment(
                 enrollment_id=enrollment.id,
@@ -72,15 +78,22 @@ class PaymentService:
         )
         await self._session.flush()
 
-        total = await self._session.scalar(
-            select(func.coalesce(func.sum(Payment.amount), 0)).where(
-                Payment.enrollment_id == enrollment.id
+        total = int(
+            await self._session.scalar(
+                select(func.coalesce(func.sum(Payment.amount), 0)).where(
+                    Payment.enrollment_id == enrollment.id
+                )
             )
+            or 0
         )
         installments = await self._installments_for(enrollment.id)
-        allocate(int(total or 0), installments)
-        enrollment.paid = int(total or 0)
-        enrollment.next_payment_at = next_due_date(installments)
+        if installments:
+            # The schedule covers fee minus the opening payment collected
+            # before it existed — only spread what came in afterwards.
+            opening = enrollment.fee - sum(item.amount for item in installments)
+            allocate(max(total - opening, 0), installments)
+            enrollment.next_payment_at = next_due_date(installments)
+        enrollment.paid = total
         await self._session.commit()
         return StudentOut.from_models(student)
 
