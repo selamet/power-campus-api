@@ -104,5 +104,9 @@ class Enrollment(AuditedBase):
     paid: Mapped[int] = mapped_column(Integer, server_default="0", nullable=False)
     next_payment_at: Mapped[date | None] = mapped_column("nextPaymentAt", Date, nullable=True)
     start_at: Mapped[date] = mapped_column("startAt", Date, nullable=False)
+    # Number of course terms ("kur") the student signed up for.
+    terms: Mapped[int] = mapped_column(Integer, server_default="1", nullable=False)
+    # Free-form finance note entered by staff during registration.
+    note: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     student: Mapped["Student"] = relationship(back_populates="enrollments")

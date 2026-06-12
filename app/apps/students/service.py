@@ -14,7 +14,9 @@ _STUDENT_FIELDS = frozenset(
         "contact_name", "contact_relation", "contact_phone",
     }
 )
-_ENROLLMENT_FIELDS = frozenset({"lang", "level", "course", "plan", "status", "fee", "paid"})
+_ENROLLMENT_FIELDS = frozenset(
+    {"lang", "level", "course", "plan", "status", "fee", "paid", "terms", "note"}
+)
 
 
 class StudentNotFoundError(Exception):
@@ -51,6 +53,8 @@ class StudentService:
                 paid=payload.paid,
                 next_payment_at=payload.next,
                 start_at=payload.start,
+                terms=payload.terms,
+                note=payload.note,
             )
         )
         self._repo.add(student)

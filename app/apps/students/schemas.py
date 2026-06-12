@@ -31,6 +31,8 @@ class StudentOut(CamelModel):
     joined: date
     email: EmailStr
     source: StudentSource | None
+    terms: int
+    note: str | None
 
     @classmethod
     def from_models(cls, student: Student) -> "StudentOut":
@@ -52,6 +54,8 @@ class StudentOut(CamelModel):
             joined=student.joined_at,
             email=student.email,
             source=student.source,
+            terms=enrollment.terms,
+            note=enrollment.note,
         )
 
 
@@ -85,6 +89,8 @@ class StudentUpdate(CamelModel):
     contact_name: str | None = None
     contact_relation: str | None = None
     contact_phone: str | None = None
+    terms: int | None = Field(default=None, ge=1)
+    note: str | None = None
 
 
 class NewStudentInput(CamelModel):
@@ -104,3 +110,5 @@ class NewStudentInput(CamelModel):
     joined: date
     email: EmailStr
     source: StudentSource | None = StudentSource.manual
+    terms: int = Field(default=1, ge=1)
+    note: str | None = None
