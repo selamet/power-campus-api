@@ -2,6 +2,7 @@
 
 from datetime import UTC, date, datetime
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.apps.students.models import Enrollment, EnrollmentStatus, Student
@@ -102,6 +103,7 @@ class StudentService:
 
     async def approve_student(self, code: str, approver: User) -> StudentOut:
         # Imported here to avoid a circular import with the payments service.
+        from app.apps.payments.models import Payment
         from app.apps.payments.service import PaymentService
 
         student = await self._get_or_404(code)
@@ -114,6 +116,24 @@ class StudentService:
         enrollment.approved_by = approver.id
         enrollment.approved_at = datetime.now(UTC)
         await PaymentService(self._session).ensure_schedule(enrollment)
+        # An opening payment entered during approval should appear in the
+        # collection history like one collected at manual registration.
+        if enrollment.paid > 0:
+            has_payments = await self._session.scalar(
+                select(func.count()).select_from(Payment).where(
+                    Payment.enrollment_id == enrollment.id
+                )
+            )
+            if not has_payments:
+                self._session.add(
+                    Payment(
+                        enrollment_id=enrollment.id,
+                        amount=enrollment.paid,
+                        paid_at=date.today(),
+                        method="Nakit",
+                        note="Açılış tahsilatı",
+                    )
+                )
         await self._session.commit()
         return StudentOut.from_models(student)
 
