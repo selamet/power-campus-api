@@ -5,7 +5,11 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from app.apps.students.schemas import NewStudentInput, StudentOut, StudentUpdate
-from app.apps.students.service import StudentNotFoundError, StudentService
+from app.apps.students.service import (
+    PaymentPlanMissingError,
+    StudentNotFoundError,
+    StudentService,
+)
 from app.apps.users.models import User, UserRole
 from app.core.deps import CurrentUser, SessionDep, require_roles
 
@@ -40,11 +44,16 @@ async def update_student(
 
 
 @router.patch("/{code}/approve", response_model=StudentOut)
-async def approve_student(code: str, session: SessionDep, _: AdminOrManager) -> StudentOut:
+async def approve_student(code: str, session: SessionDep, user: AdminOrManager) -> StudentOut:
     try:
-        return await StudentService(session).approve_student(code)
+        return await StudentService(session).approve_student(code, user)
     except StudentNotFoundError:
         raise _NOT_FOUND from None
+    except PaymentPlanMissingError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Ödeme planı tanımlanmadan kayıt onaylanamaz.",
+        ) from None
 
 
 @router.patch("/{code}/reject", status_code=status.HTTP_204_NO_CONTENT)

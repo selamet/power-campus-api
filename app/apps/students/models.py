@@ -1,12 +1,16 @@
 """Student (person) and Enrollment (course registration + finance) models."""
 
 import enum
-from datetime import date
+from datetime import date, datetime
+from typing import TYPE_CHECKING
 
-from sqlalchemy import Date, Enum, ForeignKey, Integer, String
+from sqlalchemy import Date, DateTime, Enum, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base import AuditedBase
+
+if TYPE_CHECKING:
+    from app.apps.users.models import User
 
 
 class StudentSource(enum.StrEnum):
@@ -108,5 +112,15 @@ class Enrollment(AuditedBase):
     terms: Mapped[int] = mapped_column(Integer, server_default="1", nullable=False)
     # Free-form finance note entered by staff during registration.
     note: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Who approved the enrollment and when (null while pending).
+    approved_by: Mapped[int | None] = mapped_column(
+        "approvedBy", ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    approved_at: Mapped[datetime | None] = mapped_column(
+        "approvedAt", DateTime(timezone=True), nullable=True
+    )
+    approver: Mapped["User | None"] = relationship(
+        "User", lazy="selectin", foreign_keys=[approved_by]
+    )
 
     student: Mapped["Student"] = relationship(back_populates="enrollments")

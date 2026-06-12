@@ -1,12 +1,13 @@
 """Student management use cases."""
 
-from datetime import date
+from datetime import UTC, date, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.apps.students.models import Enrollment, EnrollmentStatus, Student
 from app.apps.students.repository import StudentRepository
 from app.apps.students.schemas import NewStudentInput, StudentOut, StudentUpdate
+from app.apps.users.models import User
 
 # Fields whose Python names match their model attribute on each table.
 _STUDENT_FIELDS = frozenset(
@@ -23,6 +24,10 @@ _ENROLLMENT_FIELDS = frozenset(
 
 class StudentNotFoundError(Exception):
     """Raised when no student matches the given code."""
+
+
+class PaymentPlanMissingError(Exception):
+    """Raised when approving an enrollment that has no payment plan yet."""
 
 
 class StudentService:
@@ -95,13 +100,19 @@ class StudentService:
         await self._session.commit()
         return StudentOut.from_models(student)
 
-    async def approve_student(self, code: str) -> StudentOut:
+    async def approve_student(self, code: str, approver: User) -> StudentOut:
         # Imported here to avoid a circular import with the payments service.
         from app.apps.payments.service import PaymentService
 
         student = await self._get_or_404(code)
         enrollment = student.enrollments[-1]
+        # The fee (and with it the installment plan) must be agreed before the
+        # enrollment can go active.
+        if enrollment.fee <= 0:
+            raise PaymentPlanMissingError(code)
         enrollment.status = EnrollmentStatus.active
+        enrollment.approved_by = approver.id
+        enrollment.approved_at = datetime.now(UTC)
         await PaymentService(self._session).ensure_schedule(enrollment)
         await self._session.commit()
         return StudentOut.from_models(student)

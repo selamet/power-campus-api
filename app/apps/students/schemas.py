@@ -5,7 +5,7 @@ their course and its finance details. These schemas mirror that shape while the
 database keeps ``students`` and ``enrollments`` separate.
 """
 
-from datetime import date
+from datetime import date, datetime
 
 from pydantic import EmailStr, Field
 
@@ -33,6 +33,22 @@ class StudentOut(CamelModel):
     source: StudentSource | None
     terms: int
     note: str | None
+    # Extended profile, filled by the welcome or manual registration form.
+    tckn: str | None
+    birth_date: date | None
+    gender: str | None
+    city: str | None
+    address: str | None
+    education_level: str | None
+    school: str | None
+    department: str | None
+    grade: str | None
+    contact_name: str | None
+    contact_relation: str | None
+    contact_phone: str | None
+    # Approval audit (null while the enrollment is pending).
+    approved_by_name: str | None
+    approved_at: datetime | None
 
     @classmethod
     def from_models(cls, student: Student) -> "StudentOut":
@@ -56,6 +72,20 @@ class StudentOut(CamelModel):
             source=student.source,
             terms=enrollment.terms,
             note=enrollment.note,
+            tckn=student.tckn,
+            birth_date=student.birth_date,
+            gender=student.gender,
+            city=student.city,
+            address=student.address,
+            education_level=student.education_level,
+            school=student.school,
+            department=student.department,
+            grade=student.grade,
+            contact_name=student.contact_name,
+            contact_relation=student.contact_relation,
+            contact_phone=student.contact_phone,
+            approved_by_name=enrollment.approver.full_name if enrollment.approver else None,
+            approved_at=enrollment.approved_at,
         )
 
 
