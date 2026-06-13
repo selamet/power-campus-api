@@ -87,15 +87,7 @@ def _student_payload(email: str) -> dict:
 
 
 def _bulk_payload(codes: list[str]) -> dict:
-    return {
-        "studentCodes": codes,
-        "lang": "İngilizce",
-        "level": "B1 — Orta",
-        "course": "Online Canlı",
-        "plan": "Peşin",
-        "fee": 5_000,
-        "start": "2026-09-01",
-    }
+    return {"studentCodes": codes}
 
 
 async def test_bulk_enroll_adds_students(client: AsyncClient, admin: dict, login: Login) -> None:

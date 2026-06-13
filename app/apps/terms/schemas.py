@@ -2,8 +2,6 @@
 
 from datetime import date
 
-from pydantic import Field
-
 from app.apps.students.models import EnrollmentStatus
 from app.apps.terms.models import Term
 from app.core.schemas import CamelModel
@@ -60,16 +58,9 @@ class TermStudentOut(CamelModel):
 
 
 class BulkEnrollRequest(CamelModel):
-    """Enroll several existing students into a term with shared course/finance."""
+    """Enroll several existing students into a term.
+
+    Just the students; course and finance are not set here.
+    """
 
     student_codes: list[str]
-    lang: str
-    level: str
-    course: str
-    plan: str
-    fee: int = Field(ge=0)
-    paid: int = Field(default=0, ge=0)
-    next: date | None = None
-    start: date
-    terms: int = Field(default=1, ge=1)
-    note: str | None = None

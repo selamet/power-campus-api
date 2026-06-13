@@ -92,12 +92,11 @@ class TermService:
     ) -> list[TermStudentOut]:
         """Enroll the given existing students into a term as active enrollments.
 
-        Students already registered in this term are skipped, so re-running is
-        safe (no duplicate enrollments).
+        This simply registers each student in the term. No fee, payment plan or
+        payment record is created here; finance is handled separately on the
+        student's enrollment. Students already registered in this term are
+        skipped, so re-running is safe (no duplicate enrollments).
         """
-        from app.apps.payments.models import Payment
-        from app.apps.payments.service import PaymentService
-
         term = await self._repo.get_by_id(term_id)
         if term is None:
             raise TermNotFoundError(term_id)
@@ -108,43 +107,23 @@ class TermService:
                 .options(selectinload(Student.enrollments))
             )
         )
-        created: list[Enrollment] = []
         for student in students:
             if any(enrollment.term_id == term_id for enrollment in student.enrollments):
                 continue
             enrollment = Enrollment(
-                lang=payload.lang,
-                level=payload.level,
-                course=payload.course,
-                plan=payload.plan,
+                lang="",
+                level="",
+                course="",
+                plan="",
                 status=EnrollmentStatus.active,
-                fee=payload.fee,
-                paid=payload.paid,
-                next_payment_at=payload.next,
-                start_at=payload.start,
-                terms=payload.terms,
-                note=payload.note,
+                fee=0,
+                paid=0,
+                start_at=term.start_date,
             )
             enrollment.term = term
             enrollment.approver = actor
             enrollment.approved_at = datetime.now(UTC)
             student.enrollments.append(enrollment)
-            created.append(enrollment)
 
-        await self._session.flush()
-        payments = PaymentService(self._session)
-        for enrollment in created:
-            if enrollment.fee > enrollment.paid:
-                await payments.ensure_schedule(enrollment)
-            if payload.paid > 0:
-                self._session.add(
-                    Payment(
-                        enrollment_id=enrollment.id,
-                        amount=payload.paid,
-                        paid_at=date.today(),
-                        method="Nakit",
-                        note="Açılış tahsilatı",
-                    )
-                )
         await self._session.commit()
         return await self.list_term_students(term_id)
