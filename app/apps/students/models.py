@@ -10,6 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.base import AuditedBase
 
 if TYPE_CHECKING:
+    from app.apps.terms.models import Term
     from app.apps.users.models import User
 
 
@@ -96,6 +97,11 @@ class Enrollment(AuditedBase):
         index=True,
         nullable=False,
     )
+    # The term this registration belongs to; chosen at approval, optional so
+    # legacy and not-yet-approved enrollments stay valid.
+    term_id: Mapped[int | None] = mapped_column(
+        "termId", ForeignKey("terms.id", ondelete="SET NULL"), index=True, nullable=True
+    )
     lang: Mapped[str] = mapped_column(String(64), nullable=False)
     level: Mapped[str] = mapped_column(String(64), nullable=False)
     course: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -128,5 +134,6 @@ class Enrollment(AuditedBase):
     approver: Mapped["User | None"] = relationship(
         "User", lazy="selectin", foreign_keys=[approved_by]
     )
+    term: Mapped["Term | None"] = relationship("Term", lazy="selectin")
 
     student: Mapped["Student"] = relationship(back_populates="enrollments")
