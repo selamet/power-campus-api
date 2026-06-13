@@ -8,7 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.apps.students.models import Enrollment, EnrollmentStatus, Student
 from app.apps.students.repository import StudentRepository, provisional_code
-from app.apps.students.schemas import NewStudentInput, StudentOut, StudentUpdate
+from app.apps.students.schemas import (
+    EnrollmentOut,
+    NewEnrollmentInput,
+    NewStudentInput,
+    StudentOut,
+    StudentUpdate,
+)
 from app.apps.users.models import User
 
 # Fields whose Python names match their model attribute on each table.
@@ -34,6 +40,10 @@ class PaymentPlanMissingError(Exception):
 
 class DuplicateTcknError(Exception):
     """Raised when a student update would reuse another student's TCKN."""
+
+
+class DuplicateTermEnrollmentError(Exception):
+    """Raised when a student is already enrolled in the requested term."""
 
 
 class StudentService:
@@ -163,6 +173,71 @@ class StudentService:
         student = await self._get_or_404(code)
         await self._repo.delete(student)
         await self._session.commit()
+
+    async def list_enrollments(self, code: str) -> list[EnrollmentOut]:
+        """Every term registration of a student, newest first."""
+        student = await self._get_or_404(code)
+        ordered = sorted(student.enrollments, key=lambda item: item.id, reverse=True)
+        return [EnrollmentOut.from_model(enrollment) for enrollment in ordered]
+
+    async def add_enrollment(
+        self, code: str, payload: NewEnrollmentInput, actor: User
+    ) -> StudentOut:
+        """Enroll an existing student into another term as a new enrollment.
+
+        Creates a second (or later) registration on the same student — no new
+        student record — defaulting to active, with its installment plan built
+        right away. Returns the student whose current view is now this latest
+        enrollment.
+        """
+        from app.apps.payments.models import Payment
+        from app.apps.payments.service import PaymentService
+        from app.apps.terms.models import Term
+
+        student = await self._get_or_404(code)
+        if payload.term_id is not None and any(
+            enrollment.term_id == payload.term_id for enrollment in student.enrollments
+        ):
+            raise DuplicateTermEnrollmentError(code)
+
+        enrollment = Enrollment(
+            lang=payload.lang,
+            level=payload.level,
+            course=payload.course,
+            plan=payload.plan,
+            status=payload.status,
+            fee=payload.fee,
+            paid=payload.paid,
+            next_payment_at=payload.next,
+            start_at=payload.start,
+            terms=payload.terms,
+            note=payload.note,
+        )
+        # Assign the relationship objects directly so building the response after
+        # commit never triggers a lazy load on this freshly created row.
+        enrollment.term = (
+            await self._session.get(Term, payload.term_id) if payload.term_id is not None else None
+        )
+        if payload.status is EnrollmentStatus.active:
+            enrollment.approver = actor
+            enrollment.approved_at = datetime.now(UTC)
+        student.enrollments.append(enrollment)
+        await self._session.flush()
+
+        if enrollment.status is EnrollmentStatus.active and enrollment.fee > enrollment.paid:
+            await PaymentService(self._session).ensure_schedule(enrollment)
+        if payload.paid > 0:
+            self._session.add(
+                Payment(
+                    enrollment_id=enrollment.id,
+                    amount=payload.paid,
+                    paid_at=date.today(),
+                    method=payload.pay_method or "Nakit",
+                    note="Açılış tahsilatı",
+                )
+            )
+        await self._session.commit()
+        return StudentOut.from_models(student)
 
     async def _get_or_404(self, code: str) -> Student:
         student = await self._repo.get_by_code(code)

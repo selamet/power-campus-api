@@ -24,6 +24,23 @@ def _student_payload(email: str) -> dict:
     }
 
 
+def _enrollment_payload(term_id: int) -> dict:
+    return {
+        "termId": term_id,
+        "lang": "İngilizce",
+        "level": "B1 — Orta",
+        "course": "Hafta Sonu Yoğun",
+        "plan": "Peşin",
+        "fee": 8_000,
+        "start": "2026-09-01",
+    }
+
+
+async def _create_term(client: AsyncClient, headers: Headers, start: str, end: str) -> int:
+    response = await client.post(f"{API}/terms", headers=headers, json={"start": start, "end": end})
+    return response.json()["id"]
+
+
 async def test_create_student_generates_sequential_codes(
     client: AsyncClient, admin: dict, login: Login
 ) -> None:
@@ -116,6 +133,49 @@ async def test_assign_term_to_student(client: AsyncClient, admin: dict, login: L
     fetched = await client.get(f"{API}/students/{code}", headers=headers)
     assert fetched.json()["termId"] == term_id
     assert fetched.json()["termName"] == "2026 Güz"
+
+
+async def test_add_enrollment_to_another_term(
+    client: AsyncClient, admin: dict, login: Login
+) -> None:
+    headers = await login(admin["email"], admin["password"])
+    created = await client.post(
+        f"{API}/students", headers=headers, json=_student_payload("multi@test.com")
+    )
+    code = created.json()["id"]
+    term_id = await _create_term(client, headers, "2026-09-01", "2027-01-31")
+
+    added = await client.post(
+        f"{API}/students/{code}/enrollments", headers=headers, json=_enrollment_payload(term_id)
+    )
+    assert added.status_code == 201
+    # The new enrollment becomes the student's current view.
+    assert added.json()["termId"] == term_id
+    assert added.json()["course"] == "Hafta Sonu Yoğun"
+
+    history = await client.get(f"{API}/students/{code}/enrollments", headers=headers)
+    assert history.status_code == 200
+    assert len(history.json()) == 2
+
+
+async def test_add_enrollment_rejects_duplicate_term(
+    client: AsyncClient, admin: dict, login: Login
+) -> None:
+    headers = await login(admin["email"], admin["password"])
+    created = await client.post(
+        f"{API}/students", headers=headers, json=_student_payload("dup@test.com")
+    )
+    code = created.json()["id"]
+    term_id = await _create_term(client, headers, "2026-09-01", "2027-01-31")
+
+    first = await client.post(
+        f"{API}/students/{code}/enrollments", headers=headers, json=_enrollment_payload(term_id)
+    )
+    assert first.status_code == 201
+    again = await client.post(
+        f"{API}/students/{code}/enrollments", headers=headers, json=_enrollment_payload(term_id)
+    )
+    assert again.status_code == 409
 
 
 async def test_update_to_duplicate_tckn_conflicts(

@@ -4,9 +4,16 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
-from app.apps.students.schemas import NewStudentInput, StudentOut, StudentUpdate
+from app.apps.students.schemas import (
+    EnrollmentOut,
+    NewEnrollmentInput,
+    NewStudentInput,
+    StudentOut,
+    StudentUpdate,
+)
 from app.apps.students.service import (
     DuplicateTcknError,
+    DuplicateTermEnrollmentError,
     PaymentPlanMissingError,
     StudentNotFoundError,
     StudentService,
@@ -87,3 +94,30 @@ async def reject_student(code: str, session: SessionDep, _: CanWrite) -> Respons
     except StudentNotFoundError:
         raise _NOT_FOUND from None
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/{code}/enrollments", response_model=list[EnrollmentOut])
+async def list_enrollments(code: str, session: SessionDep, _: CanRead) -> list[EnrollmentOut]:
+    """Every term registration of the student, newest first."""
+    try:
+        return await StudentService(session).list_enrollments(code)
+    except StudentNotFoundError:
+        raise _NOT_FOUND from None
+
+
+@router.post(
+    "/{code}/enrollments", response_model=StudentOut, status_code=status.HTTP_201_CREATED
+)
+async def add_enrollment(
+    code: str, payload: NewEnrollmentInput, session: SessionDep, user: CanWrite
+) -> StudentOut:
+    """Enroll an existing student into another term (a new active enrollment)."""
+    try:
+        return await StudentService(session).add_enrollment(code, payload, user)
+    except StudentNotFoundError:
+        raise _NOT_FOUND from None
+    except DuplicateTermEnrollmentError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Öğrenci bu döneme zaten kayıtlı.",
+        ) from None

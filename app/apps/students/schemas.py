@@ -9,7 +9,7 @@ from datetime import date, datetime
 
 from pydantic import EmailStr, Field
 
-from app.apps.students.models import EnrollmentStatus, Student, StudentSource
+from app.apps.students.models import Enrollment, EnrollmentStatus, Student, StudentSource
 from app.core.schemas import CamelModel
 
 
@@ -94,6 +94,48 @@ class StudentOut(CamelModel):
         )
 
 
+class EnrollmentOut(CamelModel):
+    """A single enrollment (one term registration) of a student."""
+
+    id: int
+    term_id: int | None
+    term_name: str | None
+    lang: str
+    level: str
+    course: str
+    plan: str
+    status: EnrollmentStatus
+    fee: int
+    paid: int
+    terms: int
+    note: str | None
+    start: date
+    next: date | None
+    approved_by_name: str | None
+    approved_at: datetime | None
+
+    @classmethod
+    def from_model(cls, enrollment: Enrollment) -> "EnrollmentOut":
+        return cls(
+            id=enrollment.id,
+            term_id=enrollment.term_id,
+            term_name=enrollment.term.name if enrollment.term else None,
+            lang=enrollment.lang,
+            level=enrollment.level,
+            course=enrollment.course,
+            plan=enrollment.plan,
+            status=enrollment.status,
+            fee=enrollment.fee,
+            paid=enrollment.paid,
+            terms=enrollment.terms,
+            note=enrollment.note,
+            start=enrollment.start_at,
+            next=enrollment.next_payment_at,
+            approved_by_name=enrollment.approver.full_name if enrollment.approver else None,
+            approved_at=enrollment.approved_at,
+        )
+
+
 class StudentUpdate(CamelModel):
     """Partial update of a student and their current enrollment.
 
@@ -149,4 +191,26 @@ class NewStudentInput(CamelModel):
     terms: int = Field(default=1, ge=1)
     note: str | None = None
     # Method of the opening payment, when one was collected at registration.
+    pay_method: str | None = None
+
+
+class NewEnrollmentInput(CamelModel):
+    """Payload for enrolling an existing student into another term.
+
+    Mirrors the course/finance subset of `NewStudentInput`; no person fields,
+    since the student already exists (identified by their unique TCKN/code).
+    """
+
+    term_id: int | None = None
+    lang: str
+    level: str
+    course: str
+    status: EnrollmentStatus = EnrollmentStatus.active
+    plan: str
+    fee: int = Field(ge=0)
+    paid: int = Field(default=0, ge=0)
+    next: date | None = None
+    start: date
+    terms: int = Field(default=1, ge=1)
+    note: str | None = None
     pay_method: str | None = None
