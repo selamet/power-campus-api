@@ -15,7 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.apps.payments.models import Payment
 from app.apps.payments.service import PaymentService
 from app.apps.students.models import Enrollment, EnrollmentStatus, Student, StudentSource
-from app.apps.users.models import User, UserRole
+from app.apps.users.models import User, UserPermission, UserRole
+from app.apps.users.permissions import Permission
 from app.core.config import settings
 from app.core.context import current_user_id
 from app.core.db import AsyncSessionLocal
@@ -23,6 +24,16 @@ from app.core.security import hash_password
 
 MANAGER_EMAIL = "elif.demir@powerakademi.com"
 MANAGER_PASSWORD = "demo1234"
+
+# Default permission set granted to the sample manager (no finance write, no
+# user management). Admins hold every permission implicitly.
+MANAGER_PERMISSIONS = (
+    Permission.dashboard_read,
+    Permission.students_read,
+    Permission.students_write,
+    Permission.finance_read,
+    Permission.invites_write,
+)
 
 
 def _student(
@@ -106,6 +117,16 @@ async def _ensure_user(
     return user
 
 
+async def _ensure_permissions(
+    session: AsyncSession, user: User, permissions: tuple[Permission, ...]
+) -> None:
+    """Grant the given permissions to a user if it has none yet."""
+    if user.permissions:
+        return
+    for permission in permissions:
+        session.add(UserPermission(user_id=user.id, permission=permission.value))
+
+
 async def _seed_schedules(session: AsyncSession) -> None:
     """Build an installment schedule per enrollment and back its paid amount
     with an opening payment record.
@@ -140,7 +161,7 @@ async def seed() -> None:
             role=UserRole.admin,
             branch="Power Akademi",
         )
-        await _ensure_user(
+        manager = await _ensure_user(
             session,
             email=MANAGER_EMAIL,
             password=MANAGER_PASSWORD,
@@ -148,6 +169,7 @@ async def seed() -> None:
             role=UserRole.manager,
             branch="Kadıköy Şube",
         )
+        await _ensure_permissions(session, manager, MANAGER_PERMISSIONS)
         await session.commit()
 
         # Attribute seeded students to the admin account.

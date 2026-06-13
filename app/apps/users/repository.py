@@ -3,7 +3,7 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.apps.users.models import User
+from app.apps.users.models import User, UserRole
 
 
 class UserRepository:
@@ -18,3 +18,10 @@ class UserRepository:
     async def get_by_email(self, email: str) -> User | None:
         result = await self._session.scalars(select(User).where(User.email == email))
         return result.first()
+
+    async def list_staff(self) -> list[User]:
+        """Every account that can be managed from the panel (non-students)."""
+        result = await self._session.scalars(
+            select(User).where(User.role != UserRole.student).order_by(User.full_name)
+        )
+        return list(result)

@@ -17,12 +17,13 @@ from app.apps.invites.service import (
     InviteNotFoundError,
     InviteService,
 )
-from app.apps.users.models import User, UserRole
-from app.core.deps import SessionDep, require_roles
+from app.apps.users.models import User
+from app.apps.users.permissions import Permission
+from app.core.deps import SessionDep, require_permission
 
 router = APIRouter(prefix="/invites", tags=["invites"])
 
-AdminOrManager = Annotated[User, Depends(require_roles(UserRole.admin, UserRole.manager))]
+CanInvite = Annotated[User, Depends(require_permission(Permission.invites_write))]
 
 _NOT_FOUND = HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Davet bulunamadı.")
 
@@ -40,7 +41,7 @@ def _to_invite_out(invite: Invite) -> InviteOut:
 
 @router.post("", response_model=InviteOut, status_code=status.HTTP_201_CREATED)
 async def create_invite(
-    payload: CreateInviteRequest, session: SessionDep, _: AdminOrManager
+    payload: CreateInviteRequest, session: SessionDep, _: CanInvite
 ) -> InviteOut:
     invite = await InviteService(session).create_invite(payload)
     return _to_invite_out(invite)
