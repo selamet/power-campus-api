@@ -43,7 +43,8 @@ CITIES = (
     "İstanbul", "Ankara", "İzmir", "Bursa", "Antalya", "Adana", "Konya",
     "Gaziantep", "Kayseri", "Eskişehir", "Trabzon", "Samsun",
 )
-LANGUAGES = ("İngilizce", "İngilizce", "İngilizce", "Almanca", "Fransızca", "İspanyolca", "Rusça")
+# Only English is offered for now (mirrors the panel's LANGUAGES option list).
+LANGUAGES = ("İngilizce",)
 LEVELS = (
     "A1 — Başlangıç", "A2 — Temel", "B1 — Orta",
     "B2 — Orta-Üstü", "C1 — İleri", "C2 — Üst Düzey",
