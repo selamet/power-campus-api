@@ -3,6 +3,7 @@
 from datetime import UTC, date, datetime
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.apps.students.models import Enrollment, EnrollmentStatus, Student
@@ -31,6 +32,10 @@ class PaymentPlanMissingError(Exception):
     """Raised when approving an enrollment that has no payment plan yet."""
 
 
+class DuplicateTcknError(Exception):
+    """Raised when a student update would reuse another student's TCKN."""
+
+
 class StudentService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
@@ -41,6 +46,16 @@ class StudentService:
     ) -> list[StudentOut]:
         students = await self._repo.list_all(limit=limit, offset=offset)
         return [StudentOut.from_models(student) for student in students]
+
+    async def get_student(self, identifier: str) -> StudentOut:
+        """Resolve a single student by TCKN, falling back to the public code so
+        records without a TCKN (manual entries) stay reachable by their code."""
+        student = await self._repo.get_by_tckn(identifier)
+        if student is None:
+            student = await self._repo.get_by_code(identifier)
+        if student is None:
+            raise StudentNotFoundError(identifier)
+        return StudentOut.from_models(student)
 
     async def create_student(self, payload: NewStudentInput) -> StudentOut:
         """Create a student together with their first enrollment."""
@@ -100,7 +115,12 @@ class StudentService:
                 enrollment.next_payment_at = value
             elif field == "start":
                 enrollment.start_at = value
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except IntegrityError as exc:
+            # The only unique, user-editable column on a student is its TCKN.
+            await self._session.rollback()
+            raise DuplicateTcknError(code) from exc
         return StudentOut.from_models(student)
 
     async def approve_student(self, code: str, approver: User) -> StudentOut:

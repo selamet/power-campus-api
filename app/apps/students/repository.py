@@ -43,6 +43,14 @@ class StudentRepository:
         )
         return result.first()
 
+    async def get_by_tckn(self, tckn: str) -> Student | None:
+        result = await self._session.scalars(
+            select(Student)
+            .where(Student.tckn == tckn)
+            .options(selectinload(Student.enrollments))
+        )
+        return result.first()
+
     async def assign_public_code(self, student: Student) -> None:
         """Flush to obtain the autoincrement id, then derive a race-free public
         code from it (e.g. ``PA-1060``). Relying on the primary key avoids the

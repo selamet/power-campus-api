@@ -44,7 +44,12 @@ class Student(AuditedBase):
 
     # Extended profile, collected by the manual and self-service (welcome)
     # registration forms. All optional so existing records stay valid.
-    tckn: Mapped[str | None] = mapped_column(String(11), nullable=True)
+    # ``tckn`` is the public identifier the panel addresses a student by, so it
+    # is uniquely indexed; the nullable column still allows many records without
+    # one (manual entries), since a unique index permits multiple NULLs.
+    tckn: Mapped[str | None] = mapped_column(
+        String(11), unique=True, index=True, nullable=True
+    )
     birth_date: Mapped[date | None] = mapped_column("birthDate", Date, nullable=True)
     gender: Mapped[str | None] = mapped_column(String(32), nullable=True)
     city: Mapped[str | None] = mapped_column(String(64), nullable=True)

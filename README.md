@@ -51,6 +51,7 @@ Only `admin` and `manager` accounts can sign in for now; `teacher` and
 | POST   | `/auth/login`                 | —              | Sign in, returns a token   |
 | GET    | `/auth/me`                    | Bearer         | Current user               |
 | GET    | `/students`                   | Bearer         | List students              |
+| GET    | `/students/{identifier}`      | Bearer         | One student by TCKN or code|
 | POST   | `/students`                   | Admin/Manager  | Create a student           |
 | PATCH  | `/students/{code}`            | Admin/Manager  | Update student details     |
 | PATCH  | `/students/{code}/approve`    | Admin/Manager  | Approve a pending student  |

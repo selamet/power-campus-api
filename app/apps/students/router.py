@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from app.apps.students.schemas import NewStudentInput, StudentOut, StudentUpdate
 from app.apps.students.service import (
+    DuplicateTcknError,
     PaymentPlanMissingError,
     StudentNotFoundError,
     StudentService,
@@ -35,6 +36,15 @@ async def list_students(
     return await StudentService(session).list_students(limit=limit, offset=offset)
 
 
+@router.get("/{identifier}", response_model=StudentOut)
+async def get_student(identifier: str, session: SessionDep, _: CanRead) -> StudentOut:
+    """Fetch one student by TCKN, falling back to the public code (``PA-…``)."""
+    try:
+        return await StudentService(session).get_student(identifier)
+    except StudentNotFoundError:
+        raise _NOT_FOUND from None
+
+
 @router.post("", response_model=StudentOut, status_code=status.HTTP_201_CREATED)
 async def create_student(
     payload: NewStudentInput, session: SessionDep, _: CanWrite
@@ -50,6 +60,11 @@ async def update_student(
         return await StudentService(session).update_student(code, payload)
     except StudentNotFoundError:
         raise _NOT_FOUND from None
+    except DuplicateTcknError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Bu T.C. Kimlik No başka bir öğrencide kayıtlı.",
+        ) from None
 
 
 @router.patch("/{code}/approve", response_model=StudentOut)
