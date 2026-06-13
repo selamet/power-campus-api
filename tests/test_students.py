@@ -98,6 +98,26 @@ async def test_get_student_unknown_returns_404(
     assert (await client.get(f"{API}/students/99999999999", headers=headers)).status_code == 404
 
 
+async def test_assign_term_to_student(client: AsyncClient, admin: dict, login: Login) -> None:
+    headers = await login(admin["email"], admin["password"])
+    created = await client.post(
+        f"{API}/students", headers=headers, json=_student_payload("term@test.com")
+    )
+    code = created.json()["id"]
+    term = await client.post(
+        f"{API}/terms",
+        headers=headers,
+        json={"name": "2026 Güz", "start": "2026-09-01", "end": "2027-01-31"},
+    )
+    term_id = term.json()["id"]
+
+    await client.patch(f"{API}/students/{code}", headers=headers, json={"termId": term_id})
+
+    fetched = await client.get(f"{API}/students/{code}", headers=headers)
+    assert fetched.json()["termId"] == term_id
+    assert fetched.json()["termName"] == "2026 Güz"
+
+
 async def test_update_to_duplicate_tckn_conflicts(
     client: AsyncClient, admin: dict, login: Login
 ) -> None:

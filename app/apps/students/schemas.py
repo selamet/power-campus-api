@@ -33,6 +33,9 @@ class StudentOut(CamelModel):
     source: StudentSource | None
     terms: int
     note: str | None
+    # The term (semester) this enrollment belongs to, if assigned.
+    term_id: int | None
+    term_name: str | None
     # Extended profile, filled by the welcome or manual registration form.
     tckn: str | None
     birth_date: date | None
@@ -72,6 +75,8 @@ class StudentOut(CamelModel):
             source=student.source,
             terms=enrollment.terms,
             note=enrollment.note,
+            term_id=enrollment.term_id,
+            term_name=enrollment.term.name if enrollment.term else None,
             tckn=student.tckn,
             birth_date=student.birth_date,
             gender=student.gender,
@@ -121,6 +126,7 @@ class StudentUpdate(CamelModel):
     contact_phone: str | None = None
     terms: int | None = Field(default=None, ge=1)
     note: str | None = None
+    term_id: int | None = None
 
 
 class NewStudentInput(CamelModel):

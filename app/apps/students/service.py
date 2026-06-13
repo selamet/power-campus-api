@@ -20,7 +20,7 @@ _STUDENT_FIELDS = frozenset(
     }
 )
 _ENROLLMENT_FIELDS = frozenset(
-    {"lang", "level", "course", "plan", "status", "fee", "paid", "terms", "note"}
+    {"lang", "level", "course", "plan", "status", "fee", "paid", "terms", "note", "term_id"}
 )
 
 
