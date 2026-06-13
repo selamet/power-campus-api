@@ -38,6 +38,9 @@ class StudentOut(CamelModel):
     term_name: str | None
     # Extended profile, filled by the welcome or manual registration form.
     tckn: str | None
+    # Passport number for foreign students; ``is_foreign`` is true when set.
+    passport_no: str | None
+    is_foreign: bool
     birth_date: date | None
     gender: str | None
     city: str | None
@@ -78,6 +81,8 @@ class StudentOut(CamelModel):
             term_id=enrollment.term_id,
             term_name=enrollment.term.name if enrollment.term else None,
             tckn=student.tckn,
+            passport_no=student.passport_no,
+            is_foreign=student.passport_no is not None,
             birth_date=student.birth_date,
             gender=student.gender,
             city=student.city,
@@ -155,6 +160,7 @@ class StudentUpdate(CamelModel):
     next: date | None = None
     start: date | None = None
     tckn: str | None = None
+    passport_no: str | None = None
     birth_date: date | None = None
     gender: str | None = None
     city: str | None = None
@@ -187,6 +193,9 @@ class NewStudentInput(CamelModel):
     next: date | None = None
     joined: date
     email: EmailStr
+    # Turkish students are keyed by TCKN; foreign students by passport number.
+    tckn: str | None = None
+    passport_no: str | None = None
     source: StudentSource | None = StudentSource.manual
     terms: int = Field(default=1, ge=1)
     note: str | None = None

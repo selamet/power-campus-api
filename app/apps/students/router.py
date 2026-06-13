@@ -70,7 +70,7 @@ async def update_student(
     except DuplicateTcknError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Bu T.C. Kimlik No başka bir öğrencide kayıtlı.",
+            detail="Bu kimlik numarası (TCKN/pasaport) başka bir öğrencide kayıtlı.",
         ) from None
 
 

@@ -20,8 +20,8 @@ from app.apps.users.models import User
 # Fields whose Python names match their model attribute on each table.
 _STUDENT_FIELDS = frozenset(
     {
-        "name", "email", "phone", "tckn", "birth_date", "gender", "city", "address",
-        "education_level", "school", "department", "grade",
+        "name", "email", "phone", "tckn", "passport_no", "birth_date", "gender", "city",
+        "address", "education_level", "school", "department", "grade",
         "contact_name", "contact_relation", "contact_phone",
     }
 )
@@ -58,14 +58,9 @@ class StudentService:
         return [StudentOut.from_models(student) for student in students]
 
     async def get_student(self, identifier: str) -> StudentOut:
-        """Resolve a single student by TCKN, falling back to the public code so
-        records without a TCKN (manual entries) stay reachable by their code."""
-        student = await self._repo.get_by_tckn(identifier)
-        if student is None:
-            student = await self._repo.get_by_code(identifier)
-        if student is None:
-            raise StudentNotFoundError(identifier)
-        return StudentOut.from_models(student)
+        """Resolve a single student by any public identifier (TCKN, passport, or
+        ``PA-…`` code)."""
+        return StudentOut.from_models(await self._get_or_404(identifier))
 
     async def create_student(self, payload: NewStudentInput) -> StudentOut:
         """Create a student together with their first enrollment."""
@@ -76,6 +71,8 @@ class StudentService:
             phone=payload.phone,
             joined_at=payload.joined,
             source=payload.source,
+            tckn=payload.tckn,
+            passport_no=payload.passport_no,
         )
         student.enrollments.append(
             Enrollment(
@@ -128,7 +125,8 @@ class StudentService:
         try:
             await self._session.commit()
         except IntegrityError as exc:
-            # The only unique, user-editable column on a student is its TCKN.
+            # The unique, user-editable columns on a student are its TCKN and
+            # passport number; either can clash with another record.
             await self._session.rollback()
             raise DuplicateTcknError(code) from exc
         return StudentOut.from_models(student)
@@ -241,8 +239,10 @@ class StudentService:
         await self._session.commit()
         return StudentOut.from_models(student)
 
-    async def _get_or_404(self, code: str) -> Student:
-        student = await self._repo.get_by_code(code)
+    async def _get_or_404(self, identifier: str) -> Student:
+        """Resolve a student by TCKN, passport number or ``PA-…`` code, so every
+        operation can be addressed with the same handle."""
+        student = await self._repo.get_by_identifier(identifier)
         if student is None:
-            raise StudentNotFoundError(code)
+            raise StudentNotFoundError(identifier)
         return student

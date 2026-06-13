@@ -51,6 +51,14 @@ class Student(AuditedBase):
     tckn: Mapped[str | None] = mapped_column(
         String(11), unique=True, index=True, nullable=True
     )
+    # Passport number for foreign students who have no TCKN. Like ``tckn`` it is
+    # a public identifier such students are addressed by, so it is uniquely
+    # indexed; the nullable column allows many records without one (Turkish
+    # students keyed by TCKN, or manual entries), since the unique index permits
+    # multiple NULLs.
+    passport_no: Mapped[str | None] = mapped_column(
+        "passportNo", String(32), unique=True, index=True, nullable=True
+    )
     birth_date: Mapped[date | None] = mapped_column("birthDate", Date, nullable=True)
     gender: Mapped[str | None] = mapped_column(String(32), nullable=True)
     city: Mapped[str | None] = mapped_column(String(64), nullable=True)

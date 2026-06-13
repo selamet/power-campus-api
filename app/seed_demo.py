@@ -66,6 +66,15 @@ DEPARTMENTS = (
     "Mütercim Tercümanlık", "Diş Hekimliği",
 )
 GRADES = ("Hazırlık", "1. Sınıf", "2. Sınıf", "3. Sınıf", "4. Sınıf", "Mezun")
+# Foreign students are keyed by passport number instead of a TCKN.
+FOREIGN_FIRST = (
+    "John", "Maria", "Ahmed", "Liu", "Sophie", "Hans", "Olga", "Diego",
+    "Yuki", "Fatima", "Marco", "Anna",
+)
+FOREIGN_LAST = (
+    "Smith", "Garcia", "Khan", "Wang", "Müller", "Rossi", "Ivanov", "Dubois",
+    "Tanaka", "Johnson", "Silva", "Nguyen",
+)
 NEIGHBORHOODS = (
     "Cumhuriyet", "Bahçelievler", "Yenimahalle", "Fevzi Çakmak", "Atatürk",
     "Mimar Sinan", "Barbaros", "İstiklal", "Fatih", "Yıldız",
@@ -132,6 +141,15 @@ def _tckn(used: set[str]) -> str:
             return value
 
 
+def _passport(used: set[str]) -> str:
+    """A unique passport-style identifier: one letter + 8 digits."""
+    while True:
+        value = f"{random.choice('UPCXY')}{random.randint(10_000_000, 99_999_999)}"
+        if value not in used:
+            used.add(value)
+            return value
+
+
 def _address(city: str) -> str:
     return (
         f"{random.choice(NEIGHBORHOODS)} Mah. {random.choice(STREETS)} Sok. "
@@ -165,9 +183,13 @@ def _build_terms(today: date) -> list[Term]:
     ]
 
 
-def _build_student(index: int, today: date, used_tckn: set[str]) -> Student:
-    first = random.choice(FIRST_NAMES)
-    last = random.choice(LAST_NAMES)
+def _build_student(
+    index: int, today: date, used_tckn: set[str], used_passport: set[str]
+) -> Student:
+    # Roughly one in seven students is a foreign national keyed by passport.
+    foreign = random.random() < 0.15
+    first = random.choice(FOREIGN_FIRST if foreign else FIRST_NAMES)
+    last = random.choice(FOREIGN_LAST if foreign else LAST_NAMES)
     city = random.choice(CITIES)
     joined = today - timedelta(days=random.randint(10, 700))
     status = random.choices(
@@ -191,7 +213,8 @@ def _build_student(index: int, today: date, used_tckn: set[str]) -> Student:
         phone=_phone(),
         joined_at=joined,
         source=random.choice([StudentSource.manual, StudentSource.invite]),
-        tckn=_tckn(used_tckn),
+        tckn=None if foreign else _tckn(used_tckn),
+        passport_no=_passport(used_passport) if foreign else None,
         birth_date=date(random.randint(1985, 2007), random.randint(1, 12), random.randint(1, 28)),
         gender=random.choice(GENDERS),
         city=city,
@@ -254,7 +277,10 @@ async def seed_demo() -> None:
 
         # 100 students, each with one enrollment.
         used_tckn: set[str] = set()
-        students = [_build_student(index, today, used_tckn) for index in range(100)]
+        used_passport: set[str] = set()
+        students = [
+            _build_student(index, today, used_tckn, used_passport) for index in range(100)
+        ]
         session.add_all(students)
         await session.flush()  # assign ids to students, enrollments and terms
 
