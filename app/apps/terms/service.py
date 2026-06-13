@@ -1,13 +1,23 @@
 """Term management use cases."""
 
-from datetime import date
+from datetime import UTC, date, datetime
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
+from app.apps.students.models import Enrollment, EnrollmentStatus, Student
 from app.apps.terms.models import Term
 from app.apps.terms.naming import playful_name
 from app.apps.terms.repository import TermRepository
-from app.apps.terms.schemas import CreateTermRequest, TermOut, TermUpdate
+from app.apps.terms.schemas import (
+    BulkEnrollRequest,
+    CreateTermRequest,
+    TermOut,
+    TermStudentOut,
+    TermUpdate,
+)
+from app.apps.users.models import User
 
 
 class TermNotFoundError(Exception):
@@ -54,3 +64,87 @@ class TermService:
             raise InvalidTermDatesError
         await self._session.commit()
         return TermOut.from_model(term, today=date.today())
+
+    async def list_term_students(self, term_id: int) -> list[TermStudentOut]:
+        """The students enrolled in a term, by name."""
+        rows = await self._session.execute(
+            select(Enrollment, Student)
+            .join(Student, Enrollment.student_id == Student.id)
+            .where(Enrollment.term_id == term_id)
+            .order_by(Student.name)
+        )
+        return [
+            TermStudentOut(
+                student_id=student.student_code,
+                name=student.name,
+                lang=enrollment.lang,
+                level=enrollment.level,
+                course=enrollment.course,
+                status=enrollment.status,
+                fee=enrollment.fee,
+                paid=enrollment.paid,
+            )
+            for enrollment, student in rows
+        ]
+
+    async def bulk_enroll(
+        self, term_id: int, payload: BulkEnrollRequest, actor: User
+    ) -> list[TermStudentOut]:
+        """Enroll the given existing students into a term as active enrollments.
+
+        Students already registered in this term are skipped, so re-running is
+        safe (no duplicate enrollments).
+        """
+        from app.apps.payments.models import Payment
+        from app.apps.payments.service import PaymentService
+
+        term = await self._repo.get_by_id(term_id)
+        if term is None:
+            raise TermNotFoundError(term_id)
+        students = list(
+            await self._session.scalars(
+                select(Student)
+                .where(Student.student_code.in_(payload.student_codes))
+                .options(selectinload(Student.enrollments))
+            )
+        )
+        created: list[Enrollment] = []
+        for student in students:
+            if any(enrollment.term_id == term_id for enrollment in student.enrollments):
+                continue
+            enrollment = Enrollment(
+                lang=payload.lang,
+                level=payload.level,
+                course=payload.course,
+                plan=payload.plan,
+                status=EnrollmentStatus.active,
+                fee=payload.fee,
+                paid=payload.paid,
+                next_payment_at=payload.next,
+                start_at=payload.start,
+                terms=payload.terms,
+                note=payload.note,
+            )
+            enrollment.term = term
+            enrollment.approver = actor
+            enrollment.approved_at = datetime.now(UTC)
+            student.enrollments.append(enrollment)
+            created.append(enrollment)
+
+        await self._session.flush()
+        payments = PaymentService(self._session)
+        for enrollment in created:
+            if enrollment.fee > enrollment.paid:
+                await payments.ensure_schedule(enrollment)
+            if payload.paid > 0:
+                self._session.add(
+                    Payment(
+                        enrollment_id=enrollment.id,
+                        amount=payload.paid,
+                        paid_at=date.today(),
+                        method="Nakit",
+                        note="Açılış tahsilatı",
+                    )
+                )
+        await self._session.commit()
+        return await self.list_term_students(term_id)

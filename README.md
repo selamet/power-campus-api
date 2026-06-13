@@ -56,9 +56,13 @@ Only `admin` and `manager` accounts can sign in for now; `teacher` and
 | PATCH  | `/students/{code}`            | Admin/Manager  | Update student details     |
 | PATCH  | `/students/{code}/approve`    | Admin/Manager  | Approve a pending student  |
 | PATCH  | `/students/{code}/reject`     | Admin/Manager  | Reject (delete) a student  |
+| GET    | `/students/{code}/enrollments`| Bearer         | Term registration history  |
+| POST   | `/students/{code}/enrollments`| Admin/Manager  | Enroll into another term   |
 | GET    | `/terms`                      | Bearer         | List terms (semesters)     |
 | POST   | `/terms`                      | Terms write    | Create a term              |
 | PATCH  | `/terms/{term_id}`            | Terms write    | Update a term              |
+| GET    | `/terms/{term_id}/students`   | Terms read     | Students enrolled in a term|
+| POST   | `/terms/{term_id}/enrollments`| Students write | Bulk-enroll existing students|
 | POST   | `/invites`                    | Admin/Manager  | Create a welcome-form link |
 | GET    | `/invites/{tckn}`             | —              | Public: prefill data       |
 | POST   | `/invites/{tckn}/submit`      | —              | Public: submit welcome form|

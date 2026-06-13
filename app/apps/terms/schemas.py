@@ -2,6 +2,9 @@
 
 from datetime import date
 
+from pydantic import Field
+
+from app.apps.students.models import EnrollmentStatus
 from app.apps.terms.models import Term
 from app.core.schemas import CamelModel
 
@@ -41,3 +44,32 @@ class TermUpdate(CamelModel):
     name: str | None = None
     start: date | None = None
     end: date | None = None
+
+
+class TermStudentOut(CamelModel):
+    """A student enrolled in a term, as shown on the term's roster."""
+
+    student_id: str  # public student code, e.g. "PA-1042"
+    name: str
+    lang: str
+    level: str
+    course: str
+    status: EnrollmentStatus
+    fee: int
+    paid: int
+
+
+class BulkEnrollRequest(CamelModel):
+    """Enroll several existing students into a term with shared course/finance."""
+
+    student_codes: list[str]
+    lang: str
+    level: str
+    course: str
+    plan: str
+    fee: int = Field(ge=0)
+    paid: int = Field(default=0, ge=0)
+    next: date | None = None
+    start: date
+    terms: int = Field(default=1, ge=1)
+    note: str | None = None
