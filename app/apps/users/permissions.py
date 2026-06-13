@@ -18,6 +18,8 @@ class Permission(enum.StrEnum):
     finance_read = "finance:read"
     finance_write = "finance:write"
     invites_write = "invites:write"
+    terms_read = "terms:read"
+    terms_write = "terms:write"
     users_read = "users:read"
     users_write = "users:write"
 
@@ -77,6 +79,11 @@ PERMISSION_CATALOG: tuple[PermissionGroup, ...] = (
                 key=Permission.invites_write.value, action="write", label="Davet gönderme"
             ),
         ),
+    ),
+    PermissionGroup(
+        module="terms",
+        label="Dönemler",
+        permissions=(_read(Permission.terms_read), _write(Permission.terms_write)),
     ),
     PermissionGroup(
         module="users",
