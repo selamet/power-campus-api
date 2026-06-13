@@ -1,9 +1,12 @@
 """Integration tests for authentication, permission gating and password reset."""
 
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime, timedelta
 
-from app.apps.users.models import UserRole
+from app.apps.users.models import User, UserRole
 from httpx import AsyncClient
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from .conftest import API, Headers
 
@@ -77,10 +80,11 @@ async def test_forced_reset_blocks_api_until_changed(
         json={"currentPassword": "temp1234", "newPassword": "brandnew1"},
     )
     assert changed.status_code == 200
-    assert changed.json()["mustChangePassword"] is False
+    assert changed.json()["user"]["mustChangePassword"] is False
 
-    # Same token now passes the gate.
-    assert (await client.get(f"{API}/students", headers=headers)).status_code == 200
+    # The change returns a fresh token; that token passes the gate.
+    new_headers = {"Authorization": f"Bearer {changed.json()['token']}"}
+    assert (await client.get(f"{API}/students", headers=new_headers)).status_code == 200
 
 
 async def test_change_password_rejects_wrong_current(
@@ -96,3 +100,27 @@ async def test_change_password_rejects_wrong_current(
         json={"currentPassword": "wrong-one", "newPassword": "brandnew1"},
     )
     assert response.status_code == 400
+
+
+async def test_token_issued_before_password_change_is_rejected(
+    client: AsyncClient,
+    make_user: MakeUser,
+    login: Login,
+    session_factory: async_sessionmaker,
+) -> None:
+    await make_user(
+        email="t@test.com",
+        password="pass1234",
+        role=UserRole.manager,
+        permissions=["students:read"],
+    )
+    headers = await login("t@test.com", "pass1234")
+    assert (await client.get(f"{API}/students", headers=headers)).status_code == 200
+
+    # Simulate a password change that happened after this token was issued.
+    async with session_factory() as session:
+        user = (await session.scalars(select(User).where(User.email == "t@test.com"))).one()
+        user.password_changed_at = datetime.now(UTC) + timedelta(seconds=30)
+        await session.commit()
+
+    assert (await client.get(f"{API}/students", headers=headers)).status_code == 401

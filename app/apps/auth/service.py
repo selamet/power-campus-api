@@ -1,5 +1,7 @@
 """Authentication use cases."""
 
+from datetime import UTC, datetime
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.apps.users.models import User, UserRole
@@ -36,11 +38,12 @@ class AuthService:
 
     async def change_password(
         self, user: User, current_password: str, new_password: str
-    ) -> User:
+    ) -> tuple[User, str]:
         """Set a new password after verifying the current one.
 
-        Clears the ``must_change_password`` flag so a freshly provisioned user
-        is no longer forced through the reset screen.
+        Clears the ``must_change_password`` flag, stamps ``password_changed_at``
+        (which invalidates tokens issued earlier) and returns a fresh token so
+        the caller's own session survives the change.
         """
         if not verify_password(current_password, user.password_hash):
             raise AuthError("Mevcut parola hatalı.")
@@ -48,6 +51,7 @@ class AuthService:
             raise AuthError("Yeni parola mevcut parolayla aynı olamaz.")
         user.password_hash = hash_password(new_password)
         user.must_change_password = False
+        user.password_changed_at = datetime.now(UTC)
         await self._session.commit()
         await self._session.refresh(user)
-        return user
+        return user, create_access_token(user.id)

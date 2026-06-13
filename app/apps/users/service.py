@@ -1,5 +1,7 @@
 """Use cases for managing staff accounts and their permissions."""
 
+from datetime import UTC, datetime
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.apps.users.models import User, UserPermission, UserRole
@@ -91,8 +93,10 @@ class UserService:
             user.is_active = payload.is_active
         if payload.password:
             user.password_hash = hash_password(payload.password)
-            # A reset password is provisional; require the user to change it.
+            # A reset password is provisional; require the user to change it and
+            # invalidate any sessions the account already had.
             user.must_change_password = True
+            user.password_changed_at = datetime.now(UTC)
         if payload.permissions is not None:
             keys = self._validated_permissions(payload.permissions)
             user.permissions = [UserPermission(permission=key) for key in keys]

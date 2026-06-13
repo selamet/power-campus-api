@@ -1,6 +1,7 @@
 """Common FastAPI dependencies: database session and authentication."""
 
 from collections.abc import Awaitable, Callable
+from datetime import UTC
 from typing import Annotated
 
 import jwt
@@ -44,6 +45,16 @@ async def get_current_user(
     user = await UserRepository(session).get_by_id(user_id)
     if user is None or not user.is_active:
         raise _credentials_error
+
+    # Reject tokens issued before the password last changed (compared at the
+    # token's second-level ``iat`` precision), so a reset invalidates old
+    # sessions while the freshly issued token stays valid.
+    changed_at = user.password_changed_at
+    if changed_at is not None:
+        if changed_at.tzinfo is None:
+            changed_at = changed_at.replace(tzinfo=UTC)
+        if int(payload.get("iat", 0)) < int(changed_at.timestamp()):
+            raise _credentials_error
 
     current_user_id.set(user.id)
     return user

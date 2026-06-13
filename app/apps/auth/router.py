@@ -42,16 +42,16 @@ async def me(user: CurrentUser) -> StaffOut:
     return _to_staff(user)
 
 
-@router.post("/password", response_model=StaffOut)
+@router.post("/password", response_model=LoginResponse)
 async def change_password(
     payload: ChangePasswordRequest, user: CurrentUser, session: SessionDep
-) -> StaffOut:
+) -> LoginResponse:
     try:
-        updated = await AuthService(session).change_password(
+        updated, token = await AuthService(session).change_password(
             user, payload.current_password, payload.new_password
         )
     except AuthError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=exc.message
         ) from exc
-    return _to_staff(updated)
+    return LoginResponse(user=_to_staff(updated), token=token)

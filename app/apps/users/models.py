@@ -1,8 +1,9 @@
 """User account model, role enumeration and per-user permissions."""
 
 import enum
+from datetime import datetime
 
-from sqlalchemy import Boolean, Enum, ForeignKey, String
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.apps.users.permissions import ALL_PERMISSIONS
@@ -43,6 +44,12 @@ class User(AuditedBase):
     # new one on their next sign-in before they can use the panel.
     must_change_password: Mapped[bool] = mapped_column(
         "mustChangePassword", Boolean, server_default="0", nullable=False
+    )
+    # When the password last changed; access tokens issued before this moment
+    # are rejected, so a password change (or admin reset) invalidates old
+    # sessions. ``None`` means the password has never changed since creation.
+    password_changed_at: Mapped[datetime | None] = mapped_column(
+        "passwordChangedAt", DateTime(timezone=True), nullable=True
     )
 
     permissions: Mapped[list["UserPermission"]] = relationship(
