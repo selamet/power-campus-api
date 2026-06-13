@@ -18,6 +18,7 @@ class StaffOut(CamelModel):
     role: UserRole
     email: EmailStr
     branch: str | None = None
+    permissions: list[str] = []
 
 
 class LoginResponse(CamelModel):

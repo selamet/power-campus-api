@@ -11,7 +11,13 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 def _to_staff(user: User) -> StaffOut:
-    return StaffOut(name=user.full_name, role=user.role, email=user.email, branch=user.branch)
+    return StaffOut(
+        name=user.full_name,
+        role=user.role,
+        email=user.email,
+        branch=user.branch,
+        permissions=sorted(user.effective_permissions()),
+    )
 
 
 @router.post("/login", response_model=LoginResponse)

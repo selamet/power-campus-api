@@ -1,11 +1,12 @@
-"""User account model and role enumeration."""
+"""User account model, role enumeration and per-user permissions."""
 
 import enum
 
-from sqlalchemy import Boolean, Enum, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import Boolean, Enum, ForeignKey, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.base import AuditedBase
+from app.apps.users.permissions import ALL_PERMISSIONS
+from app.core.base import AuditedBase, Base
 
 
 class UserRole(enum.StrEnum):
@@ -38,3 +39,38 @@ class User(AuditedBase):
     is_active: Mapped[bool] = mapped_column(
         "isActive", Boolean, server_default="1", nullable=False
     )
+
+    permissions: Mapped[list["UserPermission"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+
+    @property
+    def permission_keys(self) -> set[str]:
+        """Permission strings explicitly granted to this account."""
+        return {grant.permission for grant in self.permissions}
+
+    def effective_permissions(self) -> frozenset[str]:
+        """Permissions this account actually holds (``admin`` holds them all)."""
+        if self.role is UserRole.admin:
+            return ALL_PERMISSIONS
+        return frozenset(self.permission_keys)
+
+    def has_permission(self, permission: str) -> bool:
+        return self.role is UserRole.admin or permission in self.permission_keys
+
+
+class UserPermission(Base):
+    """A single permission granted to a user account."""
+
+    __tablename__ = "userPermissions"
+
+    user_id: Mapped[int] = mapped_column(
+        "userId",
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    permission: Mapped[str] = mapped_column(String(64), primary_key=True)
+
+    user: Mapped[User] = relationship(back_populates="permissions")

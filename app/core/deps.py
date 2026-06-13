@@ -9,6 +9,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.apps.users.models import User, UserRole
+from app.apps.users.permissions import Permission
 from app.apps.users.repository import UserRepository
 from app.core.context import current_user_id
 from app.core.db import get_session
@@ -56,6 +57,23 @@ def require_roles(*roles: UserRole) -> Callable[[User], Awaitable[User]]:
 
     async def dependency(user: CurrentUser) -> User:
         if user.role not in roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Bu işlem için yetkiniz yok.",
+            )
+        return user
+
+    return dependency
+
+
+def require_permission(*permissions: Permission) -> Callable[[User], Awaitable[User]]:
+    """Build a dependency that requires every given permission.
+
+    ``admin`` accounts hold all permissions implicitly and always pass.
+    """
+
+    async def dependency(user: CurrentUser) -> User:
+        if not all(user.has_permission(permission) for permission in permissions):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Bu işlem için yetkiniz yok.",
