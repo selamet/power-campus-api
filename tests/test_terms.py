@@ -110,7 +110,10 @@ async def test_bulk_enroll_adds_students(client: AsyncClient, admin: dict, login
     assert len(enrolled.json()) == 2
 
     roster = await client.get(f"{API}/terms/{term_id}/students", headers=headers)
-    assert {row["studentId"] for row in roster.json()} == set(codes)
+    rows = roster.json()
+    assert {row["studentId"] for row in rows} == set(codes)
+    # The student's current level is carried onto the term enrollment.
+    assert all(row["level"] == "A1 — Başlangıç" for row in rows)
 
 
 async def test_bulk_enroll_skips_already_enrolled(

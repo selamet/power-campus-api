@@ -110,9 +110,12 @@ class TermService:
         for student in students:
             if any(enrollment.term_id == term_id for enrollment in student.enrollments):
                 continue
+            # Carry the student's current level over so the roster can show it;
+            # course and finance are still left blank, set later if needed.
+            level = student.enrollments[-1].level if student.enrollments else ""
             enrollment = Enrollment(
                 lang="",
-                level="",
+                level=level,
                 course="",
                 plan="",
                 status=EnrollmentStatus.active,
