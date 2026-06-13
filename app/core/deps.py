@@ -70,9 +70,19 @@ def require_permission(*permissions: Permission) -> Callable[[User], Awaitable[U
     """Build a dependency that requires every given permission.
 
     ``admin`` accounts hold all permissions implicitly and always pass.
+
+    Also enforces the first-login password reset at the API layer: a user who
+    still owes a password change is blocked from every protected resource (only
+    ``/auth/me`` and ``/auth/password`` stay reachable, since they don't use this
+    dependency), so the forced reset can't be bypassed with a direct API call.
     """
 
     async def dependency(user: CurrentUser) -> User:
+        if user.must_change_password:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Devam etmeden önce parolanızı yenilemeniz gerekiyor.",
+            )
         if not all(user.has_permission(permission) for permission in permissions):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
