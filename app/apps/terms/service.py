@@ -95,7 +95,8 @@ class TermService:
         This simply registers each student in the term. No fee, payment plan or
         payment record is created here; finance is handled separately on the
         student's enrollment. Students already registered in this term are
-        skipped, so re-running is safe (no duplicate enrollments).
+        skipped, so re-running is safe (no duplicate enrollments). Pending and
+        inactive students cannot join a term, so they are skipped too.
         """
         term = await self._repo.get_by_id(term_id)
         if term is None:
@@ -110,9 +111,14 @@ class TermService:
         for student in students:
             if any(enrollment.term_id == term_id for enrollment in student.enrollments):
                 continue
+            # A student's current status is their latest enrollment's status.
+            # Only active students may be enrolled into a term.
+            current = student.enrollments[-1] if student.enrollments else None
+            if current is not None and current.status is not EnrollmentStatus.active:
+                continue
             # Carry the student's current level over so the roster can show it;
             # course and finance are still left blank, set later if needed.
-            level = student.enrollments[-1].level if student.enrollments else ""
+            level = current.level if current else ""
             enrollment = Enrollment(
                 lang="",
                 level=level,

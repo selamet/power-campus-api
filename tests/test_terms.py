@@ -48,13 +48,18 @@ async def _create_term(
 
 
 def _student_payload(
-    email: str, *, name: str = "Roster Öğrenci", level: str = "A1 — Başlangıç"
+    email: str,
+    *,
+    name: str = "Roster Öğrenci",
+    level: str = "A1 — Başlangıç",
+    status: str = "active",
 ) -> dict:
     return {
         "name": name,
         "lang": "İngilizce",
         "level": level,
         "course": "Online Canlı",
+        "status": status,
         "phone": "0500 000 00 00",
         "start": "2026-02-01",
         "fee": 10_000,
@@ -71,10 +76,13 @@ async def _make_student(
     *,
     name: str = "Roster Öğrenci",
     level: str = "A1 — Başlangıç",
+    status: str = "active",
 ) -> str:
     """Create a student through the API and return its public code."""
     response = await client.post(
-        f"{API}/students", headers=headers, json=_student_payload(email, name=name, level=level)
+        f"{API}/students",
+        headers=headers,
+        json=_student_payload(email, name=name, level=level, status=status),
     )
     assert response.status_code == 201, response.text
     return response.json()["id"]
@@ -611,6 +619,25 @@ async def test_bulk_enroll_empty_codes_returns_existing_roster(
     assert empty.status_code == 201
     # An empty request enrolls nobody but still returns the current roster.
     assert {row["studentId"] for row in empty.json()} == {code}
+
+
+async def test_bulk_enroll_skips_pending_and_inactive_students(
+    client: AsyncClient, admin: dict, login: Login
+) -> None:
+    headers = await login(admin["email"], admin["password"])
+    active = await _make_student(client, headers, "active@test.com", status="active")
+    pending = await _make_student(client, headers, "pending@test.com", status="pending")
+    inactive = await _make_student(client, headers, "inactive@test.com", status="inactive")
+    term = await _create_term(client, headers)
+
+    enrolled = await client.post(
+        f"{API}/terms/{term['id']}/enrollments",
+        headers=headers,
+        json={"studentCodes": [active, pending, inactive]},
+    )
+    assert enrolled.status_code == 201
+    # Only the active student joins the term; pending/inactive are skipped.
+    assert {row["studentId"] for row in enrolled.json()} == {active}
 
 
 async def test_bulk_enroll_student_without_prior_enrollment_gets_blank_level(
