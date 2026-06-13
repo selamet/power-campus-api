@@ -10,7 +10,21 @@ from app.core.base import AuditedBase
 from app.core.config import settings
 from app.core.context import current_user_id
 
-engine = create_async_engine(settings.database_url, echo=settings.debug, future=True)
+# SQLite ignores server-side pooling options; only size a real connection pool
+# (Postgres) and always pre-ping so stale connections are recycled gracefully.
+_engine_kwargs: dict[str, object] = {
+    "echo": settings.debug,
+    "future": True,
+    "pool_pre_ping": True,
+}
+if not settings.database_url.startswith("sqlite"):
+    _engine_kwargs.update(
+        pool_size=settings.db_pool_size,
+        max_overflow=settings.db_max_overflow,
+        pool_recycle=settings.db_pool_recycle_seconds,
+    )
+
+engine = create_async_engine(settings.database_url, **_engine_kwargs)
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
