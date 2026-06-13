@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.apps.students.models import Enrollment, EnrollmentStatus, Student
-from app.apps.students.repository import StudentRepository
+from app.apps.students.repository import StudentRepository, provisional_code
 from app.apps.students.schemas import NewStudentInput, StudentOut, StudentUpdate
 from app.apps.users.models import User
 
@@ -36,14 +36,16 @@ class StudentService:
         self._session = session
         self._repo = StudentRepository(session)
 
-    async def list_students(self) -> list[StudentOut]:
-        students = await self._repo.list_all()
+    async def list_students(
+        self, *, limit: int | None = None, offset: int = 0
+    ) -> list[StudentOut]:
+        students = await self._repo.list_all(limit=limit, offset=offset)
         return [StudentOut.from_models(student) for student in students]
 
     async def create_student(self, payload: NewStudentInput) -> StudentOut:
         """Create a student together with their first enrollment."""
         student = Student(
-            student_code=await self._repo.next_student_code(),
+            student_code=provisional_code(),
             name=payload.name,
             email=payload.email,
             phone=payload.phone,
@@ -66,12 +68,12 @@ class StudentService:
             )
         )
         self._repo.add(student)
+        await self._repo.assign_public_code(student)
         if payload.paid:
             # Keep the opening payment in the collection history so later
             # totals (which sum payment rows) include it.
             from app.apps.payments.models import Payment
 
-            await self._session.flush()
             self._session.add(
                 Payment(
                     enrollment_id=student.enrollments[-1].id,

@@ -8,7 +8,7 @@ from app.apps.invites.models import Invite, InviteStatus
 from app.apps.invites.repository import InviteRepository
 from app.apps.invites.schemas import CreateInviteRequest, WelcomeSubmitRequest
 from app.apps.students.models import Enrollment, EnrollmentStatus, Student, StudentSource
-from app.apps.students.repository import StudentRepository
+from app.apps.students.repository import StudentRepository, provisional_code
 
 # Level, plan and fee are agreed with the student later, during approval.
 _DEFAULT_LEVEL = "Belirlenecek"
@@ -58,7 +58,7 @@ class InviteService:
             raise InviteAlreadyCompletedError(tckn)
 
         student = Student(
-            student_code=await self._students.next_student_code(),
+            student_code=provisional_code(),
             name=payload.name,
             email=payload.email,
             phone=payload.phone,
@@ -90,7 +90,7 @@ class InviteService:
             )
         )
         self._students.add(student)
-        await self._session.flush()
+        await self._students.assign_public_code(student)
 
         invite.status = InviteStatus.completed
         invite.student_id = student.id

@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from app.apps.students.schemas import NewStudentInput, StudentOut, StudentUpdate
 from app.apps.students.service import (
@@ -24,8 +24,15 @@ _NOT_FOUND = HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Öğre
 
 
 @router.get("", response_model=list[StudentOut])
-async def list_students(session: SessionDep, _: CanRead) -> list[StudentOut]:
-    return await StudentService(session).list_students()
+async def list_students(
+    session: SessionDep,
+    _: CanRead,
+    limit: Annotated[int | None, Query(ge=1, le=200)] = None,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> list[StudentOut]:
+    """List students. Without ``limit`` the full list is returned (current
+    frontend behaviour); pass ``limit``/``offset`` to page through results."""
+    return await StudentService(session).list_students(limit=limit, offset=offset)
 
 
 @router.post("", response_model=StudentOut, status_code=status.HTTP_201_CREATED)

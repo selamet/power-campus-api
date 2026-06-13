@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.apps.payments.schemas import InstallmentOut, PaymentOut, RecordPaymentRequest
 from app.apps.payments.service import PaymentService
@@ -29,9 +29,15 @@ async def list_installments(code: str, session: SessionDep, _: CanRead) -> list[
 
 
 @router.get("/{code}/payments", response_model=list[PaymentOut])
-async def list_payments(code: str, session: SessionDep, _: CanRead) -> list[PaymentOut]:
+async def list_payments(
+    code: str,
+    session: SessionDep,
+    _: CanRead,
+    limit: Annotated[int | None, Query(ge=1, le=200)] = None,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> list[PaymentOut]:
     try:
-        return await PaymentService(session).list_payments(code)
+        return await PaymentService(session).list_payments(code, limit=limit, offset=offset)
     except StudentNotFoundError:
         raise _NOT_FOUND from None
 

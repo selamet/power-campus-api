@@ -55,13 +55,19 @@ class PaymentService:
             for item in await self._installments_for(enrollment.id)
         ]
 
-    async def list_payments(self, code: str) -> list[PaymentOut]:
+    async def list_payments(
+        self, code: str, *, limit: int | None = None, offset: int = 0
+    ) -> list[PaymentOut]:
         _, enrollment = await self._resolve(code)
-        payments = await self._session.scalars(
+        stmt = (
             select(Payment)
             .where(Payment.enrollment_id == enrollment.id)
             .order_by(Payment.paid_at.desc(), Payment.id.desc())
+            .offset(offset)
         )
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        payments = await self._session.scalars(stmt)
         return [PaymentOut.model_validate(payment) for payment in payments]
 
     async def record_payment(self, code: str, payload: RecordPaymentRequest) -> StudentOut:

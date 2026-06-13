@@ -1,5 +1,7 @@
 """Data-access helpers for students and their enrollments."""
 
+from uuid import uuid4
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -7,20 +9,30 @@ from sqlalchemy.orm import selectinload
 from app.apps.students.models import Student
 
 _CODE_PREFIX = "PA-"
-_CODE_FLOOR = 1059  # first generated code is PA-1060
+_CODE_OFFSET = 1059  # the first student (id=1) gets PA-1060
+
+
+def provisional_code() -> str:
+    """A unique placeholder satisfying the NOT NULL/unique code column until the
+    real, id-derived code is assigned after the row is flushed."""
+    return f"tmp-{uuid4().hex}"
 
 
 class StudentRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def list_all(self) -> list[Student]:
-        """All students (newest first) with their enrollments eagerly loaded."""
-        result = await self._session.scalars(
+    async def list_all(self, *, limit: int | None = None, offset: int = 0) -> list[Student]:
+        """Students (newest first) with their enrollments eagerly loaded."""
+        stmt = (
             select(Student)
             .options(selectinload(Student.enrollments))
             .order_by(Student.id.desc())
+            .offset(offset)
         )
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        result = await self._session.scalars(stmt)
         return list(result)
 
     async def get_by_code(self, code: str) -> Student | None:
@@ -31,15 +43,12 @@ class StudentRepository:
         )
         return result.first()
 
-    async def next_student_code(self) -> str:
-        """Generate the next sequential public code, e.g. ``PA-1060``."""
-        codes = list(await self._session.scalars(select(Student.student_code)))
-        highest = _CODE_FLOOR
-        for code in codes:
-            suffix = code.removeprefix(_CODE_PREFIX)
-            if suffix.isdigit():
-                highest = max(highest, int(suffix))
-        return f"{_CODE_PREFIX}{highest + 1}"
+    async def assign_public_code(self, student: Student) -> None:
+        """Flush to obtain the autoincrement id, then derive a race-free public
+        code from it (e.g. ``PA-1060``). Relying on the primary key avoids the
+        read-max-then-insert race of a counted sequence."""
+        await self._session.flush()
+        student.student_code = f"{_CODE_PREFIX}{_CODE_OFFSET + student.id}"
 
     def add(self, student: Student) -> None:
         self._session.add(student)
