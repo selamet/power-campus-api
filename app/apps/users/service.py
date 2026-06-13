@@ -61,6 +61,8 @@ class UserService:
             full_name=payload.name,
             role=payload.role,
             branch=payload.branch,
+            # The admin set a provisional password; force a reset on first login.
+            must_change_password=True,
             permissions=[UserPermission(permission=key) for key in permissions],
         )
         self._session.add(user)
@@ -89,6 +91,8 @@ class UserService:
             user.is_active = payload.is_active
         if payload.password:
             user.password_hash = hash_password(payload.password)
+            # A reset password is provisional; require the user to change it.
+            user.must_change_password = True
         if payload.permissions is not None:
             keys = self._validated_permissions(payload.permissions)
             user.permissions = [UserPermission(permission=key) for key in keys]

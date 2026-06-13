@@ -39,6 +39,11 @@ class User(AuditedBase):
     is_active: Mapped[bool] = mapped_column(
         "isActive", Boolean, server_default="1", nullable=False
     )
+    # Set when an admin provisions or resets the password; the user must pick a
+    # new one on their next sign-in before they can use the panel.
+    must_change_password: Mapped[bool] = mapped_column(
+        "mustChangePassword", Boolean, server_default="0", nullable=False
+    )
 
     permissions: Mapped[list["UserPermission"]] = relationship(
         back_populates="user",

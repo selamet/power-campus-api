@@ -16,6 +16,7 @@ class StaffOut(CamelModel):
     branch: str | None = None
     is_active: bool
     permissions: list[str]
+    must_change_password: bool = False
 
 
 class CreateStaffRequest(CamelModel):

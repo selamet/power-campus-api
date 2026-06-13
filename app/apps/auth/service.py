@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.apps.users.models import User, UserRole
 from app.apps.users.repository import UserRepository
-from app.core.security import create_access_token, verify_password
+from app.core.security import create_access_token, hash_password, verify_password
 
 # Roles permitted to sign in to the management panel for now.
 LOGIN_ALLOWED_ROLES = frozenset({UserRole.admin, UserRole.manager})
@@ -20,6 +20,7 @@ class AuthError(Exception):
 
 class AuthService:
     def __init__(self, session: AsyncSession) -> None:
+        self._session = session
         self._users = UserRepository(session)
 
     async def login(self, email: str, password: str) -> tuple[User, str]:
@@ -32,3 +33,21 @@ class AuthService:
         if user.role not in LOGIN_ALLOWED_ROLES:
             raise AuthError("Bu hesabın panele giriş yetkisi yok.")
         return user, create_access_token(user.id)
+
+    async def change_password(
+        self, user: User, current_password: str, new_password: str
+    ) -> User:
+        """Set a new password after verifying the current one.
+
+        Clears the ``must_change_password`` flag so a freshly provisioned user
+        is no longer forced through the reset screen.
+        """
+        if not verify_password(current_password, user.password_hash):
+            raise AuthError("Mevcut parola hatalı.")
+        if verify_password(new_password, user.password_hash):
+            raise AuthError("Yeni parola mevcut parolayla aynı olamaz.")
+        user.password_hash = hash_password(new_password)
+        user.must_change_password = False
+        await self._session.commit()
+        await self._session.refresh(user)
+        return user

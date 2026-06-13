@@ -41,6 +41,7 @@ def _to_staff_out(user: User) -> StaffOut:
         branch=user.branch,
         is_active=user.is_active,
         permissions=sorted(user.effective_permissions()),
+        must_change_password=user.must_change_password,
     )
 
 
