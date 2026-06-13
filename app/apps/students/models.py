@@ -104,6 +104,7 @@ class Enrollment(AuditedBase):
         ),
         nullable=False,
     )
+    # Money is stored as whole Turkish Lira (₺), integer, no sub-units (kuruş).
     fee: Mapped[int] = mapped_column(Integer, nullable=False)
     paid: Mapped[int] = mapped_column(Integer, server_default="0", nullable=False)
     next_payment_at: Mapped[date | None] = mapped_column("nextPaymentAt", Date, nullable=True)

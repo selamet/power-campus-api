@@ -1,4 +1,9 @@
-"""Installment schedule and payment (collection) models."""
+"""Installment schedule and payment (collection) models.
+
+Money convention: every monetary column in this project is an integer number of
+whole Turkish Lira (₺). There are no sub-units (kuruş); amounts are never
+fractional. Keep this invariant when adding finance fields.
+"""
 
 from datetime import date
 
@@ -20,7 +25,7 @@ class Installment(AuditedBase):
         nullable=False,
     )
     sequence: Mapped[int] = mapped_column(Integer, nullable=False)
-    amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    amount: Mapped[int] = mapped_column(Integer, nullable=False)  # whole ₺
     due_date: Mapped[date] = mapped_column("dueDate", Date, nullable=False)
     # How much of this installment has been covered by collected payments.
     paid_amount: Mapped[int] = mapped_column(
@@ -39,7 +44,7 @@ class Payment(AuditedBase):
         index=True,
         nullable=False,
     )
-    amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    amount: Mapped[int] = mapped_column(Integer, nullable=False)  # whole ₺
     paid_at: Mapped[date] = mapped_column("paidAt", Date, nullable=False)
     method: Mapped[str] = mapped_column(String(64), nullable=False)
     note: Mapped[str | None] = mapped_column(String(255), nullable=True)
