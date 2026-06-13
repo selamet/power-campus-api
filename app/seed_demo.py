@@ -51,7 +51,29 @@ LEVELS = (
 COURSES = ("Hafta İçi Sabah", "Hafta İçi Akşam", "Hafta Sonu Yoğun", "Birebir Özel", "Online Canlı")
 PLANS = ("Peşin", "2 Taksit", "3 Taksit", "4 Taksit", "6 Taksit", "9 Taksit", "12 Taksit")
 PAY_METHODS = ("Kredi Kartı", "Banka Havalesi / EFT", "Nakit")
-GENDERS = ("Kadın", "Erkek")
+GENDERS = ("Kadın", "Erkek", "Belirtmek istemiyor")
+EDU_LEVELS = ("Lise", "Ön Lisans", "Lisans", "Yüksek Lisans", "Doktora", "Mezun")
+RELATIONS = ("Anne", "Baba", "Eş", "Kardeş", "Vasi", "Kendisi")
+SCHOOLS = (
+    "Boğaziçi Üniversitesi", "İstanbul Teknik Üniversitesi", "ODTÜ", "Hacettepe Üniversitesi",
+    "Ankara Üniversitesi", "Ege Üniversitesi", "Marmara Üniversitesi", "Gazi Üniversitesi",
+    "Yıldız Teknik Üniversitesi", "Dokuz Eylül Üniversitesi", "Cumhuriyet Anadolu Lisesi",
+    "Atatürk Anadolu Lisesi",
+)
+DEPARTMENTS = (
+    "Bilgisayar Mühendisliği", "Endüstri Mühendisliği", "İşletme", "Hukuk", "Tıp",
+    "Psikoloji", "Mimarlık", "Uluslararası İlişkiler", "İktisat", "Elektrik-Elektronik Müh.",
+    "Mütercim Tercümanlık", "Diş Hekimliği",
+)
+GRADES = ("Hazırlık", "1. Sınıf", "2. Sınıf", "3. Sınıf", "4. Sınıf", "Mezun")
+NEIGHBORHOODS = (
+    "Cumhuriyet", "Bahçelievler", "Yenimahalle", "Fevzi Çakmak", "Atatürk",
+    "Mimar Sinan", "Barbaros", "İstiklal", "Fatih", "Yıldız",
+)
+STREETS = (
+    "Gül", "Lale", "Papatya", "Zafer", "Çiçek", "Bahar", "Menekşe", "Defne",
+    "Akasya", "Çınar",
+)
 
 # (email, full name, role, password, permissions) for the three staff accounts.
 STAFF = (
@@ -97,6 +119,26 @@ def _phone() -> str:
     return f"{raw[:4]} {raw[4:7]} {raw[7:9]} {raw[9:11]}"
 
 
+def _tckn(used: set[str]) -> str:
+    """A unique, checksum-valid 11-digit Turkish national id number."""
+    while True:
+        digits = [random.randint(1, 9)] + [random.randint(0, 9) for _ in range(8)]
+        d10 = ((digits[0] + digits[2] + digits[4] + digits[6] + digits[8]) * 7
+               - (digits[1] + digits[3] + digits[5] + digits[7])) % 10
+        d11 = (sum(digits) + d10) % 10
+        value = "".join(map(str, [*digits, d10, d11]))
+        if value not in used:
+            used.add(value)
+            return value
+
+
+def _address(city: str) -> str:
+    return (
+        f"{random.choice(NEIGHBORHOODS)} Mah. {random.choice(STREETS)} Sok. "
+        f"No:{random.randint(1, 120)}/{random.randint(1, 20)}, {city}"
+    )
+
+
 async def _reset_schema() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
@@ -123,9 +165,10 @@ def _build_terms(today: date) -> list[Term]:
     ]
 
 
-def _build_student(index: int, today: date) -> Student:
+def _build_student(index: int, today: date, used_tckn: set[str]) -> Student:
     first = random.choice(FIRST_NAMES)
     last = random.choice(LAST_NAMES)
+    city = random.choice(CITIES)
     joined = today - timedelta(days=random.randint(10, 700))
     status = random.choices(
         [EnrollmentStatus.active, EnrollmentStatus.pending, EnrollmentStatus.inactive],
@@ -140,6 +183,7 @@ def _build_student(index: int, today: date) -> Student:
         paid = random.choice([fee, fee, fee // 2, fee // 3, max(fee - 1500, 0), 0])
     paid = max(0, min(paid, fee))
 
+    contact_first = random.choice(FIRST_NAMES)
     student = Student(
         student_code=provisional_code(),
         name=f"{first} {last}",
@@ -147,9 +191,18 @@ def _build_student(index: int, today: date) -> Student:
         phone=_phone(),
         joined_at=joined,
         source=random.choice([StudentSource.manual, StudentSource.invite]),
-        city=random.choice(CITIES),
-        gender=random.choice(GENDERS),
+        tckn=_tckn(used_tckn),
         birth_date=date(random.randint(1985, 2007), random.randint(1, 12), random.randint(1, 28)),
+        gender=random.choice(GENDERS),
+        city=city,
+        address=_address(city),
+        education_level=random.choice(EDU_LEVELS),
+        school=random.choice(SCHOOLS),
+        department=random.choice(DEPARTMENTS),
+        grade=random.choice(GRADES),
+        contact_name=f"{contact_first} {last}",
+        contact_relation=random.choice(RELATIONS),
+        contact_phone=_phone(),
     )
     student.enrollments.append(
         Enrollment(
@@ -200,7 +253,8 @@ async def seed_demo() -> None:
         session.add_all(terms)
 
         # 100 students, each with one enrollment.
-        students = [_build_student(index, today) for index in range(100)]
+        used_tckn: set[str] = set()
+        students = [_build_student(index, today, used_tckn) for index in range(100)]
         session.add_all(students)
         await session.flush()  # assign ids to students, enrollments and terms
 
