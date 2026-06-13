@@ -145,7 +145,9 @@ class StudentService:
         if enrollment.fee <= 0:
             raise PaymentPlanMissingError(code)
         enrollment.status = EnrollmentStatus.active
-        enrollment.approved_by = approver.id
+        # Set the relationship (not just the FK) so the response carries the
+        # approver's name immediately, without needing a re-fetch.
+        enrollment.approver = approver
         enrollment.approved_at = datetime.now(UTC)
         await PaymentService(self._session).ensure_schedule(enrollment)
         # An opening payment entered during approval should appear in the

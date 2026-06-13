@@ -9,15 +9,16 @@ from .conftest import API, Headers
 Login = Callable[[str, str], Awaitable[Headers]]
 
 
-def _student_payload(email: str) -> dict:
+def _student_payload(email: str, *, status: str = "active", fee: int = 10_000) -> dict:
     return {
         "name": "Test Öğrenci",
         "lang": "İngilizce",
         "level": "A1 — Başlangıç",
         "course": "Online Canlı",
+        "status": status,
         "phone": "0500 000 00 00",
         "start": "2026-02-01",
-        "fee": 10_000,
+        "fee": fee,
         "plan": "Peşin",
         "joined": "2026-01-01",
         "email": email,
@@ -176,6 +177,54 @@ async def test_add_enrollment_rejects_duplicate_term(
         f"{API}/students/{code}/enrollments", headers=headers, json=_enrollment_payload(term_id)
     )
     assert again.status_code == 409
+
+
+async def test_approve_pending_student_activates_enrollment(
+    client: AsyncClient, admin: dict, login: Login
+) -> None:
+    headers = await login(admin["email"], admin["password"])
+    created = await client.post(
+        f"{API}/students",
+        headers=headers,
+        json=_student_payload("approve@test.com", status="pending", fee=12_000),
+    )
+    code = created.json()["id"]
+
+    approved = await client.patch(f"{API}/students/{code}/approve", headers=headers)
+    assert approved.status_code == 200
+    body = approved.json()
+    assert body["status"] == "active"
+    # The acting user is recorded as the approver.
+    assert body["approvedByName"]
+    assert body["approvedAt"]
+
+
+async def test_approve_without_fee_is_rejected(
+    client: AsyncClient, admin: dict, login: Login
+) -> None:
+    headers = await login(admin["email"], admin["password"])
+    created = await client.post(
+        f"{API}/students",
+        headers=headers,
+        json=_student_payload("nofee@test.com", status="pending", fee=0),
+    )
+    code = created.json()["id"]
+
+    # A fee (and with it a payment plan) must be set before approval.
+    rejected = await client.patch(f"{API}/students/{code}/approve", headers=headers)
+    assert rejected.status_code == 422
+
+    # The student stays pending after the rejected approval.
+    fetched = await client.get(f"{API}/students/{code}", headers=headers)
+    assert fetched.json()["status"] == "pending"
+
+
+async def test_approve_unknown_student_returns_404(
+    client: AsyncClient, admin: dict, login: Login
+) -> None:
+    headers = await login(admin["email"], admin["password"])
+    response = await client.patch(f"{API}/students/PA-9999/approve", headers=headers)
+    assert response.status_code == 404
 
 
 async def test_update_to_duplicate_tckn_conflicts(
