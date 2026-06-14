@@ -14,6 +14,8 @@ import random
 from datetime import date, timedelta
 
 import app.models  # noqa: F401  -- registers every model on Base.metadata
+from app.apps.classes.models import SchoolClass
+from app.apps.classes.naming import level_code
 from app.apps.payments.models import Payment
 from app.apps.payments.service import PaymentService
 from app.apps.students.models import Enrollment, EnrollmentStatus, Student, StudentSource
@@ -314,6 +316,33 @@ async def seed_demo() -> None:
             elif roll < 0.75:
                 enrollment.term_id = past_term.id
 
+        # Classes: one section per level present in the current term; active
+        # students are auto-assigned to the class matching their level.
+        await session.flush()
+        current_levels = sorted(
+            {
+                enrollment.level
+                for student in students
+                for enrollment in student.enrollments
+                if enrollment.term_id == current_term.id
+            }
+        )
+        classes = {}
+        for level in current_levels:
+            school_class = SchoolClass(term_id=current_term.id, level=level, section=1)
+            session.add(school_class)
+            classes[level_code(level)] = school_class
+        await session.flush()
+        for student in students:
+            for enrollment in student.enrollments:
+                if (
+                    enrollment.term_id == current_term.id
+                    and enrollment.status is EnrollmentStatus.active
+                ):
+                    school_class = classes.get(level_code(enrollment.level))
+                    if school_class is not None:
+                        enrollment.class_id = school_class.id
+
         await session.commit()
 
     print("Database reset and seeded.")
@@ -322,6 +351,7 @@ async def seed_demo() -> None:
         print(f"  Staff    : {email} / {password}  ({name})")
     print("  Students : 100")
     print("  Terms    : 2025 Bahar, 2026 Güz (current), 2026 Bahar")
+    print("  Classes  : one section per level in 2026 Güz, active students assigned")
 
 
 if __name__ == "__main__":

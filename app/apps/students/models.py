@@ -110,6 +110,12 @@ class Enrollment(AuditedBase):
     term_id: Mapped[int | None] = mapped_column(
         "termId", ForeignKey("terms.id", ondelete="SET NULL"), index=True, nullable=True
     )
+    # The class (section) within the term, assigned after enrollment; optional
+    # so students can be in a term without a class yet. Cleared if the class is
+    # deleted.
+    class_id: Mapped[int | None] = mapped_column(
+        "classId", ForeignKey("classes.id", ondelete="SET NULL"), index=True, nullable=True
+    )
     lang: Mapped[str] = mapped_column(String(64), nullable=False)
     level: Mapped[str] = mapped_column(String(64), nullable=False)
     course: Mapped[str] = mapped_column(String(64), nullable=False)
