@@ -4,6 +4,7 @@ Importing this module ensures every model is registered on ``Base.metadata``,
 which Alembic autogenerate and the seed script rely on.
 """
 
+from app.apps.classes.models import SchoolClass
 from app.apps.invites.models import Invite
 from app.apps.payments.models import Installment, Payment
 from app.apps.students.models import Enrollment, Student
@@ -17,6 +18,7 @@ __all__ = [
     "Installment",
     "Invite",
     "Payment",
+    "SchoolClass",
     "Student",
     "Term",
     "User",

@@ -19,7 +19,7 @@ async def test_login_returns_all_permissions_for_admin(client: AsyncClient, admi
     assert response.status_code == 200
     user = response.json()["user"]
     assert user["role"] == "admin"
-    assert len(user["permissions"]) == 10  # admin implicitly holds every permission
+    assert len(user["permissions"]) == 12  # admin implicitly holds every permission
 
 
 async def test_login_rejects_wrong_password(client: AsyncClient, admin: dict) -> None:

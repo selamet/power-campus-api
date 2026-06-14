@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.apps.auth.router import router as auth_router
+from app.apps.classes.router import router as classes_router
 from app.apps.dashboard.router import router as dashboard_router
 from app.apps.invites.router import router as invites_router
 from app.apps.payments.router import router as payments_router
@@ -58,6 +59,7 @@ def create_app() -> FastAPI:
     app.include_router(users_router, prefix=settings.api_v1_prefix)
     app.include_router(students_router, prefix=settings.api_v1_prefix)
     app.include_router(terms_router, prefix=settings.api_v1_prefix)
+    app.include_router(classes_router, prefix=settings.api_v1_prefix)
     app.include_router(invites_router, prefix=settings.api_v1_prefix)
     app.include_router(payments_router, prefix=settings.api_v1_prefix)
     app.include_router(dashboard_router, prefix=settings.api_v1_prefix)

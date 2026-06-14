@@ -98,4 +98,12 @@ async def test_permission_catalog_lists_modules(
     response = await client.get(f"{API}/users/permissions/catalog", headers=headers)
     assert response.status_code == 200
     modules = [group["module"] for group in response.json()]
-    assert modules == ["dashboard", "students", "finance", "invites", "terms", "users"]
+    assert modules == [
+        "dashboard",
+        "students",
+        "finance",
+        "invites",
+        "terms",
+        "classes",
+        "users",
+    ]
