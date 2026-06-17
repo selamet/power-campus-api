@@ -8,6 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.base import AuditedBase
 
 if TYPE_CHECKING:
+    from app.apps.teachers.models import Teacher
     from app.apps.terms.models import Term
 
 
@@ -37,3 +38,13 @@ class SchoolClass(AuditedBase):
     section: Mapped[int] = mapped_column(Integer, nullable=False)
 
     term: Mapped["Term"] = relationship("Term", lazy="selectin")
+
+    teacher_id: Mapped[int | None] = mapped_column(
+        "teacherId",
+        ForeignKey("teachers.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
+    teacher: Mapped["Teacher | None"] = relationship(
+        "Teacher", lazy="selectin", back_populates="classes"
+    )
