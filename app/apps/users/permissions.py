@@ -22,6 +22,8 @@ class Permission(enum.StrEnum):
     terms_write = "terms:write"
     classes_read = "classes:read"
     classes_write = "classes:write"
+    teachers_read = "teachers:read"
+    teachers_write = "teachers:write"
     users_read = "users:read"
     users_write = "users:write"
 
@@ -91,6 +93,11 @@ PERMISSION_CATALOG: tuple[PermissionGroup, ...] = (
         module="classes",
         label="Sınıflar",
         permissions=(_read(Permission.classes_read), _write(Permission.classes_write)),
+    ),
+    PermissionGroup(
+        module="teachers",
+        label="Öğretmenler",
+        permissions=(_read(Permission.teachers_read), _write(Permission.teachers_write)),
     ),
     PermissionGroup(
         module="users",

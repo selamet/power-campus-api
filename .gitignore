@@ -32,3 +32,6 @@ htmlcov/
 .idea/
 .vscode/
 .DS_Store
+
+# Local-only brainstorming/planning docs (specs & plans) — not pushed
+docs/superpowers/

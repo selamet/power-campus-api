@@ -105,5 +105,6 @@ async def test_permission_catalog_lists_modules(
         "invites",
         "terms",
         "classes",
+        "teachers",
         "users",
     ]
