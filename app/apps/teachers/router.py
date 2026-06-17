@@ -4,6 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from app.apps.classes.schemas import ClassOut
 from app.apps.teachers.models import TeacherStatus
 from app.apps.teachers.schemas import TeacherCreate, TeacherOut, TeacherUpdate
 from app.apps.teachers.service import TeacherNotFoundError, TeacherService
@@ -35,6 +36,16 @@ async def create_teacher(payload: TeacherCreate, session: SessionDep, _: CanWrit
 async def get_teacher(teacher_id: int, session: SessionDep, _: CanRead) -> TeacherOut:
     try:
         return await TeacherService(session).get_teacher(teacher_id)
+    except TeacherNotFoundError:
+        raise _NOT_FOUND from None
+
+
+@router.get("/{teacher_id}/classes", response_model=list[ClassOut])
+async def list_teacher_classes(
+    teacher_id: int, session: SessionDep, _: CanRead
+) -> list[ClassOut]:
+    try:
+        return await TeacherService(session).list_classes(teacher_id)
     except TeacherNotFoundError:
         raise _NOT_FOUND from None
 

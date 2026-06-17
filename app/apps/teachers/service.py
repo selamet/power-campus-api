@@ -1,7 +1,12 @@
 """Teacher management use cases."""
 
+from datetime import date
+
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.apps.classes.schemas import ClassOut
+from app.apps.students.models import Enrollment
 from app.apps.teachers.models import Teacher, TeacherStatus
 from app.apps.teachers.repository import TeacherRepository
 from app.apps.teachers.schemas import TeacherCreate, TeacherOut, TeacherUpdate
@@ -53,6 +58,24 @@ class TeacherService:
         await self._session.commit()
         count = await self._repo.class_count_for(teacher_id)
         return TeacherOut.from_model(teacher, class_count=count)
+
+    async def list_classes(self, teacher_id: int) -> list[ClassOut]:
+        await self._get_or_404(teacher_id)
+        classes = await self._repo.classes_for(teacher_id)
+        today = date.today()
+        counts = dict(
+            (
+                await self._session.execute(
+                    select(Enrollment.class_id, func.count())
+                    .where(Enrollment.class_id.is_not(None))
+                    .group_by(Enrollment.class_id)
+                )
+            ).all()
+        )
+        return [
+            ClassOut.from_model(c, student_count=counts.get(c.id, 0), today=today)
+            for c in classes
+        ]
 
     async def _get_or_404(self, teacher_id: int) -> Teacher:
         teacher = await self._repo.get_by_id(teacher_id)

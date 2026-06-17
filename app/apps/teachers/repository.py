@@ -2,6 +2,7 @@
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.apps.classes.models import SchoolClass
 from app.apps.teachers.models import Teacher, TeacherStatus
@@ -38,3 +39,12 @@ class TeacherRepository:
             select(func.count()).where(SchoolClass.teacher_id == teacher_id)
         )
         return int(count or 0)
+
+    async def classes_for(self, teacher_id: int) -> list["SchoolClass"]:
+        result = await self._session.scalars(
+            select(SchoolClass)
+            .where(SchoolClass.teacher_id == teacher_id)
+            .order_by(SchoolClass.term_id.desc(), SchoolClass.level, SchoolClass.section)
+            .options(selectinload(SchoolClass.term), selectinload(SchoolClass.teacher))
+        )
+        return list(result)

@@ -120,3 +120,18 @@ async def test_assign_missing_teacher_404(client: AsyncClient, admin: dict, logi
     cid = await _create_class(client, headers, term_id)
     res = await client.patch(f"{API}/classes/{cid}", headers=headers, json={"teacherId": 9999})
     assert res.status_code == 404
+
+
+async def test_list_teacher_classes(client: AsyncClient, admin: dict, login: Login) -> None:
+    headers = await login(admin["email"], admin["password"])
+    tid = (await client.post(f"{API}/teachers", headers=headers, json=_teacher_payload())).json()["id"]
+    term_id = await _create_term(client, headers)
+    cid = await _create_class(client, headers, term_id)
+    await client.patch(f"{API}/classes/{cid}", headers=headers, json={"teacherId": tid})
+
+    res = await client.get(f"{API}/teachers/{tid}/classes", headers=headers)
+    assert res.status_code == 200
+    rows = res.json()
+    assert len(rows) == 1
+    assert rows[0]["id"] == cid
+    assert rows[0]["teacherId"] == tid
