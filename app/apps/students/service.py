@@ -176,6 +176,7 @@ class StudentService:
                         note="Açılış tahsilatı",
                     )
                 )
+        log_activity(self._session, student, ActivityKind.approved, "Kayıt onaylandı")
         await self._session.commit()
         return StudentOut.from_models(student)
 
@@ -252,6 +253,13 @@ class StudentService:
                     note="Açılış tahsilatı",
                 )
             )
+        term_label = enrollment.term.name if enrollment.term else "dönem atanmadı"
+        log_activity(
+            self._session,
+            student,
+            ActivityKind.enrolled,
+            f"Yeni dönem kaydı: {payload.level} — {term_label}",
+        )
         await self._session.commit()
         return StudentOut.from_models(student)
 
