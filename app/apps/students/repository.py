@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.apps.students.models import Student
+from app.apps.students.models import Student, StudentActivity
 
 _CODE_PREFIX = "PA-"
 _CODE_OFFSET = 1059  # the first student (id=1) gets PA-1060
@@ -67,6 +67,16 @@ class StudentRepository:
             if student is not None:
                 return student
         return None
+
+    async def list_activities(self, student_id: int) -> list[StudentActivity]:
+        """A student's activity entries, newest first, with the actor loaded."""
+        result = await self._session.scalars(
+            select(StudentActivity)
+            .where(StudentActivity.student_id == student_id)
+            .order_by(StudentActivity.created_at.desc(), StudentActivity.id.desc())
+            .options(selectinload(StudentActivity.actor))
+        )
+        return list(result)
 
     async def assign_public_code(self, student: Student) -> None:
         """Flush to obtain the autoincrement id, then derive a race-free public
