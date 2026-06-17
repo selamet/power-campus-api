@@ -18,6 +18,7 @@ from app.apps.classes.schemas import (
     CreateClassRequest,
 )
 from app.apps.students.models import Enrollment, EnrollmentStatus, Student
+from app.apps.teachers.models import Teacher, TeacherStatus
 from app.apps.terms.models import Term
 
 
@@ -31,6 +32,14 @@ class TermNotFoundError(Exception):
 
 class DuplicateClassError(Exception):
     """Raised when a term already has a class with the same level and section."""
+
+
+class InactiveTeacherError(Exception):
+    """Raised when assigning an inactive teacher to a class."""
+
+
+class TeacherNotFoundError(Exception):
+    """Raised when assigning a teacher that does not exist."""
 
 
 class ClassService:
@@ -72,6 +81,8 @@ class ClassService:
             school_class.level = data["level"]
         if data.get("section") is not None:
             school_class.section = data["section"]
+        if "teacher_id" in data:
+            await self._apply_teacher(school_class, data["teacher_id"])
         try:
             await self._session.commit()
         except IntegrityError as exc:
@@ -171,6 +182,18 @@ class ClassService:
             if enrollment.term_id == term_id:
                 return enrollment
         return None
+
+    async def _apply_teacher(self, school_class: SchoolClass, teacher_id: int | None) -> None:
+        if teacher_id is None:
+            school_class.teacher = None
+            school_class.teacher_id = None
+            return
+        teacher = await self._session.get(Teacher, teacher_id)
+        if teacher is None:
+            raise TeacherNotFoundError(teacher_id)
+        if teacher.status is not TeacherStatus.active:
+            raise InactiveTeacherError(teacher_id)
+        school_class.teacher = teacher
 
     async def _to_out(self, school_class: SchoolClass) -> ClassOut:
         count = await self._session.scalar(

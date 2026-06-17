@@ -75,3 +75,48 @@ async def test_list_requires_read_permission(
                                     permissions=[Permission.teachers_write.value])
     res = await client.get(f"{API}/teachers", headers=headers)
     assert res.status_code == 403
+
+
+async def _create_term(client, headers, start="2026-09-01", end="2027-01-31") -> int:
+    res = await client.post(f"{API}/terms", headers=headers, json={"start": start, "end": end})
+    return res.json()["id"]
+
+
+async def _create_class(client, headers, term_id, level="A1 — Başlangıç") -> int:
+    res = await client.post(f"{API}/classes", headers=headers, json={"termId": term_id, "level": level})
+    return res.json()["id"]
+
+
+async def test_assign_teacher_to_class(client: AsyncClient, admin: dict, login: Login) -> None:
+    headers = await login(admin["email"], admin["password"])
+    tid = (await client.post(f"{API}/teachers", headers=headers, json=_teacher_payload())).json()["id"]
+    term_id = await _create_term(client, headers)
+    cid = await _create_class(client, headers, term_id)
+
+    assigned = await client.patch(f"{API}/classes/{cid}", headers=headers, json={"teacherId": tid})
+    assert assigned.status_code == 200
+    assert assigned.json()["teacherId"] == tid
+    assert assigned.json()["teacherName"] == "Ayşe Öğretmen"
+
+    cleared = await client.patch(f"{API}/classes/{cid}", headers=headers, json={"teacherId": None})
+    assert cleared.json()["teacherId"] is None
+    assert cleared.json()["teacherName"] is None
+
+
+async def test_assign_inactive_teacher_rejected(client: AsyncClient, admin: dict, login: Login) -> None:
+    headers = await login(admin["email"], admin["password"])
+    tid = (await client.post(f"{API}/teachers", headers=headers, json=_teacher_payload())).json()["id"]
+    await client.patch(f"{API}/teachers/{tid}", headers=headers, json={"status": "inactive"})
+    term_id = await _create_term(client, headers)
+    cid = await _create_class(client, headers, term_id)
+
+    res = await client.patch(f"{API}/classes/{cid}", headers=headers, json={"teacherId": tid})
+    assert res.status_code == 422
+
+
+async def test_assign_missing_teacher_404(client: AsyncClient, admin: dict, login: Login) -> None:
+    headers = await login(admin["email"], admin["password"])
+    term_id = await _create_term(client, headers)
+    cid = await _create_class(client, headers, term_id)
+    res = await client.patch(f"{API}/classes/{cid}", headers=headers, json={"teacherId": 9999})
+    assert res.status_code == 404

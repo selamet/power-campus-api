@@ -23,6 +23,8 @@ class ClassOut(CamelModel):
     student_count: int
     # Whether the class's term is the current one.
     current: bool
+    teacher_id: int | None = None
+    teacher_name: str | None = None
 
     @classmethod
     def from_model(
@@ -38,6 +40,8 @@ class ClassOut(CamelModel):
             name=class_display_name(school_class.level, school_class.section),
             student_count=student_count,
             current=bool(term and term.start_date <= today <= term.end_date),
+            teacher_id=school_class.teacher_id,
+            teacher_name=school_class.teacher.name if school_class.teacher else None,
         )
 
 
@@ -54,6 +58,7 @@ class ClassUpdate(CamelModel):
 
     level: str | None = None
     section: int | None = Field(default=None, ge=1)
+    teacher_id: int | None = None
 
 
 class AssignStudentsRequest(CamelModel):

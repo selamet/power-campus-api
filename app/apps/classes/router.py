@@ -15,6 +15,8 @@ from app.apps.classes.service import (
     ClassNotFoundError,
     ClassService,
     DuplicateClassError,
+    InactiveTeacherError,
+    TeacherNotFoundError,
     TermNotFoundError,
 )
 from app.apps.users.models import User
@@ -60,6 +62,15 @@ async def update_class(
         return await ClassService(session).update_class(class_id, payload)
     except ClassNotFoundError:
         raise _NOT_FOUND from None
+    except TeacherNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Öğretmen bulunamadı."
+        ) from None
+    except InactiveTeacherError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Pasif bir öğretmen sınıfa atanamaz.",
+        ) from None
     except DuplicateClassError:
         raise _DUPLICATE from None
 
