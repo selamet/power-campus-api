@@ -6,9 +6,16 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.apps.students.models import Enrollment, EnrollmentStatus, Student
+from app.apps.students.models import (
+    ActivityKind,
+    Enrollment,
+    EnrollmentStatus,
+    Student,
+)
+from app.apps.students.activity import log_activity
 from app.apps.students.repository import StudentRepository, provisional_code
 from app.apps.students.schemas import (
+    ActivityOut,
     EnrollmentOut,
     NewEnrollmentInput,
     NewStudentInput,
@@ -91,6 +98,9 @@ class StudentService:
         )
         self._repo.add(student)
         await self._repo.assign_public_code(student)
+        log_activity(
+            self._session, student, ActivityKind.created, "Öğrenci kaydı oluşturuldu"
+        )
         if payload.paid:
             # Keep the opening payment in the collection history so later
             # totals (which sum payment rows) include it.
@@ -166,6 +176,7 @@ class StudentService:
                         note="Açılış tahsilatı",
                     )
                 )
+        log_activity(self._session, student, ActivityKind.approved, "Kayıt onaylandı")
         await self._session.commit()
         return StudentOut.from_models(student)
 
@@ -179,6 +190,12 @@ class StudentService:
         student = await self._get_or_404(code)
         ordered = sorted(student.enrollments, key=lambda item: item.id, reverse=True)
         return [EnrollmentOut.from_model(enrollment) for enrollment in ordered]
+
+    async def list_activities(self, code: str) -> list[ActivityOut]:
+        """A student's activity log, newest first."""
+        student = await self._get_or_404(code)
+        rows = await self._repo.list_activities(student.id)
+        return [ActivityOut.from_model(row) for row in rows]
 
     async def add_enrollment(
         self, code: str, payload: NewEnrollmentInput, actor: User
@@ -236,6 +253,13 @@ class StudentService:
                     note="Açılış tahsilatı",
                 )
             )
+        term_label = enrollment.term.name if enrollment.term else "dönem atanmadı"
+        log_activity(
+            self._session,
+            student,
+            ActivityKind.enrolled,
+            f"Yeni dönem kaydı: {payload.level} — {term_label}",
+        )
         await self._session.commit()
         return StudentOut.from_models(student)
 

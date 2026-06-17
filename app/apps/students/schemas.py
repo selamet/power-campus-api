@@ -9,7 +9,14 @@ from datetime import date, datetime
 
 from pydantic import EmailStr, Field
 
-from app.apps.students.models import Enrollment, EnrollmentStatus, Student, StudentSource
+from app.apps.students.models import (
+    ActivityKind,
+    Enrollment,
+    EnrollmentStatus,
+    Student,
+    StudentActivity,
+    StudentSource,
+)
 from app.core.schemas import CamelModel
 
 
@@ -201,6 +208,28 @@ class NewStudentInput(CamelModel):
     note: str | None = None
     # Method of the opening payment, when one was collected at registration.
     pay_method: str | None = None
+
+
+class ActivityOut(CamelModel):
+    """One activity-log entry for a student."""
+
+    id: int
+    kind: ActivityKind
+    message: str
+    meta: dict | None
+    actor_name: str | None
+    created_at: datetime
+
+    @classmethod
+    def from_model(cls, activity: StudentActivity) -> "ActivityOut":
+        return cls(
+            id=activity.id,
+            kind=activity.kind,
+            message=activity.message,
+            meta=activity.meta,
+            actor_name=activity.actor.full_name if activity.actor else None,
+            created_at=activity.created_at,
+        )
 
 
 class NewEnrollmentInput(CamelModel):

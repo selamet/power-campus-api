@@ -7,7 +7,7 @@ which Alembic autogenerate and the seed script rely on.
 from app.apps.classes.models import SchoolClass
 from app.apps.invites.models import Invite
 from app.apps.payments.models import Installment, Payment
-from app.apps.students.models import Enrollment, Student
+from app.apps.students.models import Enrollment, Student, StudentActivity
 from app.apps.terms.models import Term
 from app.apps.users.models import User
 from app.core.base import Base
@@ -20,6 +20,7 @@ __all__ = [
     "Payment",
     "SchoolClass",
     "Student",
+    "StudentActivity",
     "Term",
     "User",
 ]

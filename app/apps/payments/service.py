@@ -8,7 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.apps.payments.models import Installment, Payment
 from app.apps.payments.schedule import allocate, build_schedule, next_due_date
 from app.apps.payments.schemas import InstallmentOut, PaymentOut, RecordPaymentRequest
-from app.apps.students.models import Enrollment, Student
+from app.apps.students.activity import log_activity
+from app.apps.students.models import ActivityKind, Enrollment, Student
 from app.apps.students.repository import StudentRepository
 from app.apps.students.schemas import StudentOut
 from app.apps.students.service import StudentNotFoundError
@@ -100,6 +101,13 @@ class PaymentService:
             allocate(max(total - opening, 0), installments)
             enrollment.next_payment_at = next_due_date(installments)
         enrollment.paid = total
+        log_activity(
+            self._session,
+            student,
+            ActivityKind.payment_recorded,
+            f"Ödeme alındı (₺{payload.amount})",
+            {"amount": payload.amount},
+        )
         await self._session.commit()
         return StudentOut.from_models(student)
 

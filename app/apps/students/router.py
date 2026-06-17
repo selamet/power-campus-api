@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from app.apps.students.schemas import (
+    ActivityOut,
     EnrollmentOut,
     NewEnrollmentInput,
     NewStudentInput,
@@ -101,6 +102,15 @@ async def list_enrollments(code: str, session: SessionDep, _: CanRead) -> list[E
     """Every term registration of the student, newest first."""
     try:
         return await StudentService(session).list_enrollments(code)
+    except StudentNotFoundError:
+        raise _NOT_FOUND from None
+
+
+@router.get("/{code}/activity", response_model=list[ActivityOut])
+async def list_activity(code: str, session: SessionDep, _: CanRead) -> list[ActivityOut]:
+    """The student's activity log, newest first."""
+    try:
+        return await StudentService(session).list_activities(code)
     except StudentNotFoundError:
         raise _NOT_FOUND from None
 

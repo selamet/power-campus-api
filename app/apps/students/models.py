@@ -4,7 +4,7 @@ import enum
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Date, DateTime, Enum, ForeignKey, Integer, String
+from sqlalchemy import JSON, Date, DateTime, Enum, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base import AuditedBase
@@ -27,6 +27,18 @@ class EnrollmentStatus(enum.StrEnum):
     active = "active"
     pending = "pending"
     inactive = "inactive"
+
+
+class ActivityKind(enum.StrEnum):
+    """A recorded event on a student's activity log."""
+
+    created = "created"
+    approved = "approved"
+    enrolled = "enrolled"
+    payment_recorded = "payment_recorded"
+    # Reserved for later CRM sub-projects; defined now, emitted there.
+    status_changed = "status_changed"
+    note_added = "note_added"
 
 
 class Student(AuditedBase):
@@ -92,6 +104,11 @@ class Student(AuditedBase):
         cascade="all, delete-orphan",
         order_by="Enrollment.id",
     )
+    activities: Mapped[list["StudentActivity"]] = relationship(
+        back_populates="student",
+        cascade="all, delete-orphan",
+        order_by="StudentActivity.id",
+    )
 
 
 class Enrollment(AuditedBase):
@@ -151,3 +168,39 @@ class Enrollment(AuditedBase):
     term: Mapped["Term | None"] = relationship("Term", lazy="selectin")
 
     student: Mapped["Student"] = relationship(back_populates="enrollments")
+
+
+class StudentActivity(AuditedBase):
+    """One recorded event on a student's timeline (created, approved, ...).
+
+    Immutable: rows are appended by the service layer as events occur. The
+    acting user is captured automatically via ``createdBy`` (the audit hook),
+    so no separate actor column is needed.
+    """
+
+    __tablename__ = "student_activities"
+
+    student_id: Mapped[int] = mapped_column(
+        "studentId",
+        ForeignKey("students.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    kind: Mapped[ActivityKind] = mapped_column(
+        Enum(
+            ActivityKind,
+            name="activityKind",
+            native_enum=False,
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        ),
+        nullable=False,
+    )
+    message: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Optional structured detail, e.g. {"amount": 500} for a payment event.
+    meta: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    # The acting user, resolved through the inherited ``createdBy`` FK.
+    actor: Mapped["User | None"] = relationship(
+        "User", lazy="selectin", foreign_keys="StudentActivity.created_by"
+    )
+    student: Mapped["Student"] = relationship(back_populates="activities")
