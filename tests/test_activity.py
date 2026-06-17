@@ -108,3 +108,28 @@ async def test_add_enrollment_logs_activity(
     enrolled = [row for row in rows if row["kind"] == "enrolled"]
     assert len(enrolled) == 1
     assert "B1" in enrolled[0]["message"]
+
+
+async def test_record_payment_logs_activity(
+    client: AsyncClient, admin: dict, login: Login
+) -> None:
+    headers = await login(admin["email"], admin["password"])
+    code = (
+        await client.post(
+            f"{API}/students",
+            headers=headers,
+            json=_student_payload("pay@test.com", fee=10_000),
+        )
+    ).json()["id"]
+
+    pay = await client.post(
+        f"{API}/students/{code}/payments",
+        headers=headers,
+        json={"amount": 500, "paidAt": "2026-03-01", "method": "Nakit"},
+    )
+    assert pay.status_code == 201
+
+    rows = (await client.get(f"{API}/students/{code}/activity", headers=headers)).json()
+    payment_rows = [row for row in rows if row["kind"] == "payment_recorded"]
+    assert len(payment_rows) == 1
+    assert payment_rows[0]["meta"]["amount"] == 500
