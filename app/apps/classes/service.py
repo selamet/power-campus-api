@@ -68,6 +68,16 @@ class ClassService:
         )
         self._repo.add(school_class)
         try:
+            # Flush to surface the unique violation and to obtain the id needed
+            # before attaching lessons.
+            await self._session.flush()
+            # Local import avoids a circular import (lesson_service imports this
+            # module's exception types).
+            from app.apps.classes.lesson_service import LessonService
+
+            await LessonService(self._session).seed_for_new_class(
+                school_class, payload.lessons
+            )
             await self._session.commit()
         except IntegrityError as exc:
             await self._session.rollback()
