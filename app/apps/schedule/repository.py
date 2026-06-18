@@ -1,6 +1,6 @@
 """Schedule data access."""
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.apps.schedule.models import ScheduleConfig, TermScheduleSettings
 
 if TYPE_CHECKING:
+    from app.apps.classes.models import ClassLesson
     from app.apps.schedule.models import ScheduleSession
 
 
@@ -65,3 +66,31 @@ class ScheduleRepository:
         if weekday is not None:
             stmt = stmt.where(ScheduleSession.weekday == weekday)
         return list(await self._session.scalars(stmt))
+
+    async def class_lessons_for_class(self, class_id: int) -> list["ClassLesson"]:
+        from app.apps.classes.models import ClassLesson
+
+        return list(
+            await self._session.scalars(
+                select(ClassLesson).where(ClassLesson.class_id == class_id)
+            )
+        )
+
+    async def class_lessons_for_term(self, term_id: int) -> list["ClassLesson"]:
+        from app.apps.classes.models import ClassLesson, SchoolClass
+
+        return list(
+            await self._session.scalars(
+                select(ClassLesson)
+                .join(SchoolClass, ClassLesson.class_id == SchoolClass.id)
+                .where(SchoolClass.term_id == term_id)
+            )
+        )
+
+    async def configs_for_classes(self, class_ids: list[int]) -> dict[int, dict[str, Any]]:
+        if not class_ids:
+            return {}
+        rows = await self._session.scalars(
+            select(ScheduleConfig).where(ScheduleConfig.class_id.in_(class_ids))
+        )
+        return {c.class_id: c.rules for c in rows}

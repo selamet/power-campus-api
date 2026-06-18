@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 
 from app.apps.schedule.schemas import (
+    GeneratePreview,
     ScheduleConfigOut,
     ScheduleConfigUpdate,
     SessionOut,
@@ -61,3 +62,13 @@ async def term_schedule(
     term_id: int, session: SessionDep, _: CanRead, weekday: int | None = None
 ) -> list[SessionOut]:
     return await ScheduleService(session).term_schedule(term_id, weekday)
+
+
+@router.post("/classes/{class_id}/schedule/generate", response_model=GeneratePreview)
+async def generate_class(class_id: int, session: SessionDep, _: CanWrite) -> GeneratePreview:
+    return await ScheduleService(session).generate_for_class(class_id)
+
+
+@router.post("/terms/{term_id}/schedule/generate", response_model=GeneratePreview)
+async def generate_term(term_id: int, session: SessionDep, _: CanWrite) -> GeneratePreview:
+    return await ScheduleService(session).generate_for_term(term_id)

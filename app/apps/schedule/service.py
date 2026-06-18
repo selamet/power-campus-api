@@ -2,20 +2,32 @@
 
 from typing import TYPE_CHECKING
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 if TYPE_CHECKING:
+    from app.apps.schedule.generator import LessonReq
     from app.apps.schedule.models import ScheduleSession
 
 from app.apps.schedule.models import ScheduleConfig, TermScheduleSettings
 from app.apps.schedule.repository import ScheduleRepository
 from app.apps.schedule.schemas import (
+    GeneratePreview,
+    ReportItem,
     ScheduleConfigOut,
     ScheduleConfigUpdate,
     SessionOut,
+    SessionPreview,
     TermSettingsOut,
     TermSettingsUpdate,
 )
+
+
+def _lt(reqs: list["LessonReq"], class_lesson_id: int) -> str:
+    for r in reqs:
+        if r.class_lesson_id == class_lesson_id:
+            return r.lesson_type
+    return ""
 
 
 def _settings_out(s: TermScheduleSettings) -> TermSettingsOut:
@@ -106,3 +118,106 @@ class ScheduleService:
     async def term_schedule(self, term_id: int, weekday: int | None) -> list[SessionOut]:
         rows = await self._repo.sessions_for_term(term_id, weekday)
         return [self._session_out(s) for s in rows]
+
+    async def _build_and_run(self, term_id: int, class_ids: list[int]) -> GeneratePreview:
+        from app.apps.classes.lessons import LessonType
+        from app.apps.classes.models import ClassLesson
+        from app.apps.schedule.generator import (
+            ClassRules,
+            GenSettings,
+            LessonReq,
+            TeacherRule,
+            generate,
+        )
+
+        settings_out = await self.get_settings(term_id)
+        gs = GenSettings(
+            working_days=settings_out.working_days,
+            day_start=settings_out.day_start,
+            day_end=settings_out.day_end,
+            per_day_default=settings_out.default_per_day,
+            break_min=settings_out.break_min,
+        )
+        trules: dict[int, TeacherRule] = {}
+        for key, val in settings_out.teacher_rules.items():
+            trules[int(key)] = TeacherRule(
+                unavailable_weekdays=val.get("unavailableWeekdays", []),
+                max_per_day=val.get("maxPerDay"),
+                max_per_week=val.get("maxPerWeek"),
+            )
+        configs = await self._repo.configs_for_classes(class_ids)
+        lessons_by_class: dict[int, list[ClassLesson]] = {}
+        for cl in await self._repo.class_lessons_for_term(term_id):
+            lessons_by_class.setdefault(cl.class_id, []).append(cl)
+
+        reqs: list[LessonReq] = []
+        crules: dict[int, ClassRules] = {}
+        teacher_names: dict[int | None, str | None] = {None: None}
+        for cid in class_ids:
+            rules = configs.get(cid, {})
+            crules[cid] = ClassRules(
+                per_day_cap=rules.get("perDayCap"),
+                closed_weekdays=rules.get("closedWeekdays", []),
+                daily_pattern=rules.get("dailyPattern", []),
+                separations=rules.get("separations", []),
+            )
+            cfg_lessons = {item["lessonType"]: item for item in rules.get("lessons", [])}
+            for cl in lessons_by_class.get(cid, []):
+                teacher_names[cl.teacher_id] = cl.teacher.name if cl.teacher else None
+                spec = cfg_lessons.get(cl.lesson_type)
+                if spec is None:
+                    continue
+                reqs.append(
+                    LessonReq(
+                        class_lesson_id=cl.id,
+                        class_id=cid,
+                        teacher_id=cl.teacher_id,
+                        lesson_type=cl.lesson_type,
+                        duration_min=spec.get("durationMin", settings_out.default_duration),
+                        count=spec.get("sessionsPerWeek", 1),
+                        pinned_weekday=spec.get("pinnedWeekday"),
+                        consecutive=spec.get("consecutive", False),
+                    )
+                )
+
+        result = generate(reqs, gs, crules, trules)
+        sessions = [
+            SessionPreview(
+                class_lesson_id=p.class_lesson_id,
+                class_id=p.class_id,
+                lesson_type=LessonType(_lt(reqs, p.class_lesson_id)),
+                teacher_id=p.teacher_id,
+                teacher_name=teacher_names.get(p.teacher_id),
+                weekday=p.weekday,
+                start_time=p.start,
+                end_time=p.end,
+            )
+            for p in result.placements
+        ]
+        report = [
+            ReportItem(
+                class_id=u.class_id,
+                lesson_type=LessonType(u.lesson_type),
+                reason=u.reason,
+            )
+            for u in result.unplaced
+        ]
+        return GeneratePreview(sessions=sessions, report=report)
+
+    async def generate_for_class(self, class_id: int) -> GeneratePreview:
+        from app.apps.classes.models import SchoolClass
+
+        cls = await self._session.get(SchoolClass, class_id)
+        if cls is None:
+            return GeneratePreview(sessions=[], report=[])
+        return await self._build_and_run(cls.term_id, [class_id])
+
+    async def generate_for_term(self, term_id: int) -> GeneratePreview:
+        from app.apps.classes.models import SchoolClass
+
+        ids = list(
+            await self._session.scalars(
+                select(SchoolClass.id).where(SchoolClass.term_id == term_id)
+            )
+        )
+        return await self._build_and_run(term_id, ids)

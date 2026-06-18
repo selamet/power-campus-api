@@ -50,3 +50,25 @@ class SessionOut(CamelModel):
     weekday: int
     start_time: time
     end_time: time
+
+
+class SessionPreview(CamelModel):
+    class_lesson_id: int
+    class_id: int
+    lesson_type: LessonType
+    teacher_id: int | None
+    teacher_name: str | None
+    weekday: int
+    start_time: time
+    end_time: time
+
+
+class ReportItem(CamelModel):
+    class_id: int
+    lesson_type: LessonType
+    reason: str
+
+
+class GeneratePreview(CamelModel):
+    sessions: list[SessionPreview]
+    report: list[ReportItem]
