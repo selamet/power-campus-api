@@ -1,5 +1,6 @@
 """Schedule orchestration: settings, config, generation, apply, manual edits."""
 
+from datetime import time
 from typing import TYPE_CHECKING
 
 from sqlalchemy import select
@@ -16,11 +17,19 @@ from app.apps.schedule.schemas import (
     ReportItem,
     ScheduleConfigOut,
     ScheduleConfigUpdate,
+    SessionCreate,
+    SessionMove,
     SessionOut,
     SessionPreview,
     TermSettingsOut,
     TermSettingsUpdate,
 )
+
+
+class ConflictError(Exception):
+    def __init__(self, message: str) -> None:
+        self.message = message
+        super().__init__(message)
 
 
 def _lt(reqs: list["LessonReq"], class_lesson_id: int) -> str:
@@ -254,3 +263,71 @@ class ScheduleService:
             )
         )
         return await self._apply(term_id, ids)
+
+    async def _assert_no_conflict(
+        self,
+        class_lesson_id: int,
+        weekday: int,
+        start: time,
+        end: time,
+        *,
+        exclude_id: int | None = None,
+    ) -> None:
+        from app.apps.classes.models import ClassLesson
+        from app.apps.schedule.conflicts import Slot, overlaps
+
+        cl = await self._session.get(ClassLesson, class_lesson_id)
+        if cl is None:
+            raise ConflictError("Ders bulunamadı.")
+        new = Slot(weekday, start, end)
+        for s in await self._repo.sessions_for_term_of_class_lesson(class_lesson_id):
+            if exclude_id is not None and s.id == exclude_id:
+                continue
+            if not overlaps(new, Slot(s.weekday, s.start_time, s.end_time)):
+                continue
+            other = s.class_lesson
+            if other.class_id == cl.class_id:
+                raise ConflictError("Bu sınıfın aynı saatte başka dersi var.")
+            if cl.teacher_id is not None and other.teacher_id == cl.teacher_id:
+                raise ConflictError("Öğretmen aynı saatte başka sınıfta.")
+
+    async def add_session(self, payload: SessionCreate) -> SessionOut:
+        await self._assert_no_conflict(
+            payload.class_lesson_id, payload.weekday, payload.start_time, payload.end_time
+        )
+        obj = ScheduleSession(
+            class_lesson_id=payload.class_lesson_id,
+            weekday=payload.weekday,
+            start_time=payload.start_time,
+            end_time=payload.end_time,
+        )
+        self._repo.add(obj)
+        await self._session.commit()
+        await self._session.refresh(obj)
+        return self._session_out(obj)
+
+    async def move_session(self, session_id: int, payload: SessionMove) -> SessionOut:
+        obj = await self._repo.get_session_by_id(session_id)
+        if obj is None:
+            raise ConflictError("Oturum bulunamadı.")
+        await self._assert_no_conflict(
+            obj.class_lesson_id,
+            payload.weekday,
+            payload.start_time,
+            payload.end_time,
+            exclude_id=session_id,
+        )
+        obj.weekday = payload.weekday
+        obj.start_time = payload.start_time
+        obj.end_time = payload.end_time
+        await self._session.commit()
+        await self._session.refresh(obj)
+        return self._session_out(obj)
+
+    async def delete_session(self, session_id: int) -> bool:
+        obj = await self._repo.get_session_by_id(session_id)
+        if obj is None:
+            return False
+        await self._repo.delete_session(obj)
+        await self._session.commit()
+        return True

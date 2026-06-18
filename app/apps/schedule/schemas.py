@@ -77,3 +77,16 @@ class GeneratePreview(CamelModel):
 class ApplyResult(CamelModel):
     applied: int
     report: list[ReportItem]
+
+
+class SessionCreate(CamelModel):
+    class_lesson_id: int
+    weekday: int = Field(ge=0, le=6)
+    start_time: time
+    end_time: time
+
+
+class SessionMove(CamelModel):
+    weekday: int = Field(ge=0, le=6)
+    start_time: time
+    end_time: time

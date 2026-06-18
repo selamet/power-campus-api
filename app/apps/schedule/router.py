@@ -2,18 +2,20 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from app.apps.schedule.schemas import (
     ApplyResult,
     GeneratePreview,
     ScheduleConfigOut,
     ScheduleConfigUpdate,
+    SessionCreate,
+    SessionMove,
     SessionOut,
     TermSettingsOut,
     TermSettingsUpdate,
 )
-from app.apps.schedule.service import ScheduleService
+from app.apps.schedule.service import ConflictError, ScheduleService
 from app.apps.users.models import User
 from app.apps.users.permissions import Permission
 from app.core.deps import SessionDep, require_permission
@@ -83,3 +85,29 @@ async def apply_class(class_id: int, session: SessionDep, _: CanWrite) -> ApplyR
 @router.post("/terms/{term_id}/schedule/apply", response_model=ApplyResult)
 async def apply_term(term_id: int, session: SessionDep, _: CanWrite) -> ApplyResult:
     return await ScheduleService(session).apply_for_term(term_id)
+
+
+@router.post(
+    "/schedule/sessions", response_model=SessionOut, status_code=status.HTTP_201_CREATED
+)
+async def add_session(payload: SessionCreate, session: SessionDep, _: CanWrite) -> SessionOut:
+    try:
+        return await ScheduleService(session).add_session(payload)
+    except ConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.message) from exc
+
+
+@router.patch("/schedule/sessions/{session_id}", response_model=SessionOut)
+async def move_session(
+    session_id: int, payload: SessionMove, session: SessionDep, _: CanWrite
+) -> SessionOut:
+    try:
+        return await ScheduleService(session).move_session(session_id, payload)
+    except ConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.message) from exc
+
+
+@router.delete("/schedule/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_session(session_id: int, session: SessionDep, _: CanWrite) -> Response:
+    await ScheduleService(session).delete_session(session_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

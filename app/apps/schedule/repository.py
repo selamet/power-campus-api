@@ -113,3 +113,25 @@ class ScheduleRepository:
         await self._session.execute(
             delete(ScheduleSession).where(ScheduleSession.class_lesson_id.in_(cl_ids))
         )
+
+    async def get_session_by_id(self, session_id: int) -> "ScheduleSession | None":
+        from app.apps.schedule.models import ScheduleSession
+
+        return await self._session.get(ScheduleSession, session_id)
+
+    async def sessions_for_term_of_class_lesson(
+        self, class_lesson_id: int
+    ) -> list["ScheduleSession"]:
+        """All sessions in the same term as the given class_lesson (for conflict scan)."""
+        from app.apps.classes.models import ClassLesson, SchoolClass
+
+        cl = await self._session.get(ClassLesson, class_lesson_id)
+        if cl is None:
+            return []
+        sub_class = await self._session.get(SchoolClass, cl.class_id)
+        if sub_class is None:
+            return []
+        return await self.sessions_for_term(sub_class.term_id, None)
+
+    async def delete_session(self, obj: "ScheduleSession") -> None:
+        await self._session.delete(obj)
