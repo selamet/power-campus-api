@@ -1,8 +1,9 @@
 """Class (section) management use cases."""
 
+import random as _random
 from datetime import date
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -11,6 +12,9 @@ from app.apps.classes.models import SchoolClass
 from app.apps.classes.naming import level_code
 from app.apps.classes.repository import ClassRepository
 from app.apps.classes.schemas import (
+    AssignCriteria,
+    AssignOrder,
+    AssignPayment,
     AssignStudentsRequest,
     ClassOut,
     ClassStudentOut,
@@ -68,6 +72,11 @@ class ClassService:
         )
         self._repo.add(school_class)
         try:
+            # Flush to surface the unique violation and to obtain the id needed
+            # before pointing enrollments at the class.
+            await self._session.flush()
+            if payload.auto_assign is not None:
+                await self._assign_by_criteria(school_class, payload.auto_assign)
             await self._session.commit()
         except IntegrityError as exc:
             await self._session.rollback()
@@ -138,25 +147,52 @@ class ClassService:
         await self._session.commit()
         return await self.list_class_students(class_id)
 
-    async def auto_assign(self, class_id: int) -> list[ClassStudentOut]:
-        """Assign every active, still-unassigned student in the term whose level
-        matches the class level."""
+    async def auto_assign(
+        self, class_id: int, criteria: AssignCriteria | None = None
+    ) -> list[ClassStudentOut]:
+        """Assign active term students matching the class level, per the given
+        criteria. ``None`` keeps the original behavior: every unassigned match."""
         school_class = await self._get_or_404(class_id)
-        target = level_code(school_class.level)
-        enrollments = list(
-            await self._session.scalars(
-                select(Enrollment).where(
-                    Enrollment.term_id == school_class.term_id,
-                    Enrollment.class_id.is_(None),
-                    Enrollment.status == EnrollmentStatus.active,
-                )
-            )
-        )
-        for enrollment in enrollments:
-            if level_code(enrollment.level) == target:
-                enrollment.class_id = class_id
+        await self._assign_by_criteria(school_class, criteria or AssignCriteria())
         await self._session.commit()
         return await self.list_class_students(class_id)
+
+    async def _assign_by_criteria(
+        self, school_class: SchoolClass, criteria: AssignCriteria
+    ) -> None:
+        """Select candidates per ``criteria`` and point their term enrollment at
+        ``school_class``. Does not commit (callers commit)."""
+        target = level_code(school_class.level)
+        stmt = select(Enrollment).where(
+            Enrollment.term_id == school_class.term_id,
+            Enrollment.status == EnrollmentStatus.active,
+        )
+        if criteria.include_assigned:
+            # Anything not already in this class (unassigned or another class).
+            stmt = stmt.where(
+                or_(
+                    Enrollment.class_id.is_(None),
+                    Enrollment.class_id != school_class.id,
+                )
+            )
+        else:
+            stmt = stmt.where(Enrollment.class_id.is_(None))
+        if criteria.payment is AssignPayment.paid_only:
+            stmt = stmt.where(Enrollment.paid >= Enrollment.fee)
+        if criteria.order is AssignOrder.oldest:
+            stmt = stmt.order_by(Enrollment.start_at.asc(), Enrollment.id.asc())
+        elif criteria.order is AssignOrder.newest:
+            stmt = stmt.order_by(Enrollment.start_at.desc(), Enrollment.id.desc())
+
+        rows = list(await self._session.scalars(stmt))
+        # Level is stored as the full label, so match on the code in Python.
+        candidates = [e for e in rows if level_code(e.level) == target]
+        if criteria.order is AssignOrder.random:
+            _random.shuffle(candidates)
+        if criteria.limit is not None:
+            candidates = candidates[: criteria.limit]
+        for enrollment in candidates:
+            enrollment.class_id = school_class.id
 
     async def unassign_student(self, class_id: int, code: str) -> None:
         await self._get_or_404(class_id)
