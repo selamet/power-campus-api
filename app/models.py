@@ -7,6 +7,7 @@ which Alembic autogenerate and the seed script rely on.
 from app.apps.classes.models import ClassLesson, SchoolClass
 from app.apps.invites.models import Invite
 from app.apps.payments.models import Installment, Payment
+from app.apps.schedule.models import ScheduleConfig, ScheduleSession, TermScheduleSettings
 from app.apps.students.models import Enrollment, Student, StudentActivity
 from app.apps.teachers.models import Teacher
 from app.apps.terms.models import Term
@@ -20,10 +21,13 @@ __all__ = [
     "Installment",
     "Invite",
     "Payment",
+    "ScheduleConfig",
+    "ScheduleSession",
     "SchoolClass",
     "Student",
     "StudentActivity",
     "Teacher",
     "Term",
+    "TermScheduleSettings",
     "User",
 ]
