@@ -80,6 +80,31 @@ async def _student_in_term(
     return code
 
 
+async def _student_in_term_ex(
+    client: AsyncClient,
+    headers: Headers,
+    email: str,
+    term_id: int,
+    *,
+    level: str = "A1 — Başlangıç",
+    start: str = "2026-02-01",
+    paid: int = 0,
+    fee: int = 10_000,
+) -> str:
+    """Like ``_student_in_term`` but with a distinct start date and finance, so
+    ordering and payment-filter behavior can be exercised."""
+    payload = _student_payload(email, level=level)
+    payload.update({"start": start, "paid": paid, "fee": fee})
+    created = await client.post(f"{API}/students", headers=headers, json=payload)
+    assert created.status_code == 201, created.text
+    code = created.json()["id"]
+    patched = await client.patch(
+        f"{API}/students/{code}", headers=headers, json={"termId": term_id}
+    )
+    assert patched.status_code == 200, patched.text
+    return code
+
+
 async def _create_class(
     client: AsyncClient,
     headers: Headers,
@@ -416,3 +441,139 @@ async def test_unassign_keeps_student_in_term(
     term_roster = await client.get(f"{API}/terms/{term_id}/students", headers=headers)
     assert class_roster.json() == []
     assert {row["studentId"] for row in term_roster.json()} == {code}
+
+
+# --------------------------------------------------------------------------- #
+# Configurable auto-assignment (builder)
+# --------------------------------------------------------------------------- #
+
+
+async def test_auto_assign_limit_caps_count(
+    client: AsyncClient, admin: dict, login: Login
+) -> None:
+    headers = await login(admin["email"], admin["password"])
+    term_id = await _create_term(client, headers)
+    for i in range(3):
+        await _student_in_term_ex(client, headers, f"cap{i}@test.com", term_id)
+    school_class = await _create_class(client, headers, term_id, level="A1 — Başlangıç")
+    assigned = await client.post(
+        f"{API}/classes/{school_class['id']}/auto-assign",
+        headers=headers,
+        json={"limit": 2},
+    )
+    assert assigned.status_code == 200
+    assert len(assigned.json()) == 2
+
+
+async def test_auto_assign_order_oldest_then_newest(
+    client: AsyncClient, admin: dict, login: Login
+) -> None:
+    headers = await login(admin["email"], admin["password"])
+    term_id = await _create_term(client, headers)
+    old = await _student_in_term_ex(client, headers, "old@test.com", term_id, start="2026-01-01")
+    new = await _student_in_term_ex(client, headers, "new@test.com", term_id, start="2026-03-01")
+    klass = await _create_class(client, headers, term_id, level="A1 — Başlangıç")
+    oldest = await client.post(
+        f"{API}/classes/{klass['id']}/auto-assign",
+        headers=headers,
+        json={"limit": 1, "order": "oldest"},
+    )
+    assert {r["studentId"] for r in oldest.json()} == {old}
+    # Reset, then newest-first picks the other student.
+    await client.delete(f"{API}/classes/{klass['id']}/students/{old}", headers=headers)
+    newest = await client.post(
+        f"{API}/classes/{klass['id']}/auto-assign",
+        headers=headers,
+        json={"limit": 1, "order": "newest"},
+    )
+    assert {r["studentId"] for r in newest.json()} == {new}
+
+
+async def test_auto_assign_paid_only_filters_unpaid(
+    client: AsyncClient, admin: dict, login: Login
+) -> None:
+    headers = await login(admin["email"], admin["password"])
+    term_id = await _create_term(client, headers)
+    paid = await _student_in_term_ex(
+        client, headers, "paid@test.com", term_id, paid=10_000, fee=10_000
+    )
+    await _student_in_term_ex(client, headers, "owe@test.com", term_id, paid=0, fee=10_000)
+    klass = await _create_class(client, headers, term_id, level="A1 — Başlangıç")
+    assigned = await client.post(
+        f"{API}/classes/{klass['id']}/auto-assign",
+        headers=headers,
+        json={"payment": "paidOnly"},
+    )
+    assert {r["studentId"] for r in assigned.json()} == {paid}
+
+
+async def test_auto_assign_include_assigned_moves_students(
+    client: AsyncClient, admin: dict, login: Login
+) -> None:
+    headers = await login(admin["email"], admin["password"])
+    term_id = await _create_term(client, headers)
+    code = await _student_in_term_ex(client, headers, "mv@test.com", term_id)
+    one = await _create_class(client, headers, term_id, level="A1 — Başlangıç", section=1)
+    two = await _create_class(client, headers, term_id, level="A1 — Başlangıç", section=2)
+    await client.post(
+        f"{API}/classes/{one['id']}/students", headers=headers, json={"studentCodes": [code]}
+    )
+    # Default (includeAssigned false) skips the already-assigned student.
+    skip = await client.post(f"{API}/classes/{two['id']}/auto-assign", headers=headers, json={})
+    assert skip.json() == []
+    # includeAssigned true moves them into class two.
+    moved = await client.post(
+        f"{API}/classes/{two['id']}/auto-assign",
+        headers=headers,
+        json={"includeAssigned": True},
+    )
+    assert {r["studentId"] for r in moved.json()} == {code}
+
+
+async def test_auto_assign_empty_body_keeps_old_behavior(
+    client: AsyncClient, admin: dict, login: Login
+) -> None:
+    headers = await login(admin["email"], admin["password"])
+    term_id = await _create_term(client, headers)
+    a = await _student_in_term_ex(client, headers, "e1@test.com", term_id)
+    b = await _student_in_term_ex(client, headers, "e2@test.com", term_id)
+    klass = await _create_class(client, headers, term_id, level="A1 — Başlangıç")
+    assigned = await client.post(f"{API}/classes/{klass['id']}/auto-assign", headers=headers)
+    assert {r["studentId"] for r in assigned.json()} == {a, b}
+
+
+async def test_create_class_with_auto_assign(
+    client: AsyncClient, admin: dict, login: Login
+) -> None:
+    headers = await login(admin["email"], admin["password"])
+    term_id = await _create_term(client, headers)
+    for i in range(3):
+        await _student_in_term_ex(client, headers, f"ca{i}@test.com", term_id)
+    created = await client.post(
+        f"{API}/classes",
+        headers=headers,
+        json={
+            "termId": term_id,
+            "level": "A1 — Başlangıç",
+            "autoAssign": {"limit": 2, "order": "oldest"},
+        },
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["studentCount"] == 2
+    roster = await client.get(
+        f"{API}/classes/{created.json()['id']}/students", headers=headers
+    )
+    assert len(roster.json()) == 2
+
+
+async def test_create_class_without_auto_assign_is_empty(
+    client: AsyncClient, admin: dict, login: Login
+) -> None:
+    headers = await login(admin["email"], admin["password"])
+    term_id = await _create_term(client, headers)
+    await _student_in_term_ex(client, headers, "noaa@test.com", term_id)
+    created = await client.post(
+        f"{API}/classes", headers=headers, json={"termId": term_id, "level": "A1 — Başlangıç"}
+    )
+    assert created.status_code == 201
+    assert created.json()["studentCount"] == 0

@@ -1,5 +1,6 @@
 """Class API schemas."""
 
+import enum
 from datetime import date
 
 from pydantic import Field
@@ -45,12 +46,38 @@ class ClassOut(CamelModel):
         )
 
 
+class AssignOrder(enum.StrEnum):
+    """Priority for picking students when an assignment is capped."""
+
+    oldest = "oldest"
+    newest = "newest"
+    random = "random"
+
+
+class AssignPayment(enum.StrEnum):
+    """Payment filter for auto-assignment."""
+
+    all = "all"
+    paid_only = "paidOnly"
+
+
+class AssignCriteria(CamelModel):
+    """Knobs controlling which (and how many) students an auto-assign pulls in."""
+
+    limit: int | None = Field(default=None, ge=1)
+    order: AssignOrder = AssignOrder.oldest
+    payment: AssignPayment = AssignPayment.all
+    include_assigned: bool = False
+
+
 class CreateClassRequest(CamelModel):
     """Payload for creating a class; section is auto-assigned when omitted."""
 
     term_id: int
     level: str
     section: int | None = Field(default=None, ge=1)
+    # When present, students are auto-assigned right after creation (atomic).
+    auto_assign: AssignCriteria | None = None
 
 
 class ClassUpdate(CamelModel):

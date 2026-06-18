@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from app.apps.classes.schemas import (
+    AssignCriteria,
     AssignStudentsRequest,
     ClassOut,
     ClassStudentOut,
@@ -106,9 +107,14 @@ async def assign_students(
 
 
 @router.post("/{class_id}/auto-assign", response_model=list[ClassStudentOut])
-async def auto_assign(class_id: int, session: SessionDep, _: CanWrite) -> list[ClassStudentOut]:
+async def auto_assign(
+    class_id: int,
+    session: SessionDep,
+    _: CanWrite,
+    criteria: AssignCriteria | None = None,
+) -> list[ClassStudentOut]:
     try:
-        return await ClassService(session).auto_assign(class_id)
+        return await ClassService(session).auto_assign(class_id, criteria)
     except ClassNotFoundError:
         raise _NOT_FOUND from None
 
