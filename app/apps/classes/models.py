@@ -58,9 +58,10 @@ class SchoolClass(AuditedBase):
 
 
 class ClassLesson(AuditedBase):
-    """A lesson within a class: a type, weekly session count, duration and an
-    optional teacher. A class seeds four by default; rows are freely added or
-    hard-deleted. Same type may repeat — there is no unique constraint."""
+    """A lesson within a class: a type and an optional teacher. A class seeds
+    four by default; rows are freely added or hard-deleted. Same type may
+    repeat — there is no unique constraint. Duration and weekly session count
+    are owned by the schedule module."""
 
     __tablename__ = "class_lessons"
 
@@ -77,12 +78,6 @@ class ClassLesson(AuditedBase):
         ForeignKey("teachers.id", ondelete="SET NULL"),
         index=True,
         nullable=True,
-    )
-    session_duration_min: Mapped[int] = mapped_column(
-        "sessionDurationMin", Integer, nullable=False
-    )
-    sessions_per_week: Mapped[int] = mapped_column(
-        "sessionsPerWeek", Integer, nullable=False
     )
 
     teacher: Mapped["Teacher | None"] = relationship("Teacher", lazy="selectin")

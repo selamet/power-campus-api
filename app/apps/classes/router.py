@@ -6,8 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from app.apps.classes.lesson_service import LessonNotFoundError, LessonService
 from app.apps.classes.lessons import (
-    DEFAULT_SESSION_DURATION_MIN,
-    DEFAULT_SESSIONS_PER_WEEK,
     LESSON_LABELS,
     LessonType,
 )
@@ -161,8 +159,6 @@ async def lesson_types(session: SessionDep, _: CanRead) -> list[LessonTypeOut]:
         LessonTypeOut(
             value=lesson_type,
             label=LESSON_LABELS[lesson_type],
-            default_sessions_per_week=DEFAULT_SESSIONS_PER_WEEK[lesson_type],
-            default_duration_min=DEFAULT_SESSION_DURATION_MIN,
         )
         for lesson_type in LessonType
     ]

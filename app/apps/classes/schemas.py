@@ -52,16 +52,12 @@ class LessonInput(CamelModel):
 
     lesson_type: LessonType
     teacher_id: int | None = None
-    session_duration_min: int = Field(ge=1)
-    sessions_per_week: int = Field(ge=1)
 
 
 class LessonUpdate(CamelModel):
     """Partial update of a lesson. ``teacher_id`` present-but-null clears it."""
 
     teacher_id: int | None = None
-    session_duration_min: int | None = Field(default=None, ge=1)
-    sessions_per_week: int | None = Field(default=None, ge=1)
 
 
 class ClassLessonOut(CamelModel):
@@ -73,9 +69,6 @@ class ClassLessonOut(CamelModel):
     lesson_type_label: str
     teacher_id: int | None
     teacher_name: str | None
-    session_duration_min: int
-    sessions_per_week: int
-    weekly_total_min: int
 
     @classmethod
     def from_model(cls, lesson: ClassLesson) -> "ClassLessonOut":
@@ -87,9 +80,6 @@ class ClassLessonOut(CamelModel):
             lesson_type_label=LESSON_LABELS[lt],
             teacher_id=lesson.teacher_id,
             teacher_name=lesson.teacher.name if lesson.teacher else None,
-            session_duration_min=lesson.session_duration_min,
-            sessions_per_week=lesson.sessions_per_week,
-            weekly_total_min=lesson.session_duration_min * lesson.sessions_per_week,
         )
 
 
@@ -98,8 +88,6 @@ class LessonTypeOut(CamelModel):
 
     value: LessonType
     label: str
-    default_sessions_per_week: int
-    default_duration_min: int
 
 
 class AssignOrder(enum.StrEnum):
