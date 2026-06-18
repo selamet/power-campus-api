@@ -4,7 +4,12 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
-from app.apps.schedule.schemas import TermSettingsOut, TermSettingsUpdate
+from app.apps.schedule.schemas import (
+    ScheduleConfigOut,
+    ScheduleConfigUpdate,
+    TermSettingsOut,
+    TermSettingsUpdate,
+)
 from app.apps.schedule.service import ScheduleService
 from app.apps.users.models import User
 from app.apps.users.permissions import Permission
@@ -26,3 +31,15 @@ async def put_settings(
     term_id: int, payload: TermSettingsUpdate, session: SessionDep, _: CanWrite
 ) -> TermSettingsOut:
     return await ScheduleService(session).upsert_settings(term_id, payload)
+
+
+@router.get("/classes/{class_id}/schedule/config", response_model=ScheduleConfigOut)
+async def get_config(class_id: int, session: SessionDep, _: CanRead) -> ScheduleConfigOut:
+    return await ScheduleService(session).get_config(class_id)
+
+
+@router.put("/classes/{class_id}/schedule/config", response_model=ScheduleConfigOut)
+async def put_config(
+    class_id: int, payload: ScheduleConfigUpdate, session: SessionDep, _: CanWrite
+) -> ScheduleConfigOut:
+    return await ScheduleService(session).upsert_config(class_id, payload)

@@ -2,9 +2,14 @@
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.apps.schedule.models import TermScheduleSettings
+from app.apps.schedule.models import ScheduleConfig, TermScheduleSettings
 from app.apps.schedule.repository import ScheduleRepository
-from app.apps.schedule.schemas import TermSettingsOut, TermSettingsUpdate
+from app.apps.schedule.schemas import (
+    ScheduleConfigOut,
+    ScheduleConfigUpdate,
+    TermSettingsOut,
+    TermSettingsUpdate,
+)
 
 
 def _settings_out(s: TermScheduleSettings) -> TermSettingsOut:
@@ -46,3 +51,21 @@ class ScheduleService:
         await self._session.commit()
         await self._session.refresh(existing)
         return _settings_out(existing)
+
+    async def get_config(self, class_id: int) -> ScheduleConfigOut:
+        existing = await self._repo.get_config(class_id)
+        rules = existing.rules if existing else {}
+        return ScheduleConfigOut(class_id=class_id, rules=rules)
+
+    async def upsert_config(
+        self, class_id: int, payload: ScheduleConfigUpdate
+    ) -> ScheduleConfigOut:
+        existing = await self._repo.get_config(class_id)
+        if existing is None:
+            existing = ScheduleConfig(class_id=class_id, rules=payload.rules)
+            self._repo.add(existing)
+        else:
+            existing.rules = payload.rules
+        await self._session.commit()
+        await self._session.refresh(existing)
+        return ScheduleConfigOut(class_id=existing.class_id, rules=existing.rules)
