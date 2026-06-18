@@ -218,7 +218,7 @@ class ClassService:
             .where(Enrollment.class_id.is_not(None))
             .group_by(Enrollment.class_id)
         )
-        return dict(rows.all())
+        return {class_id: count for class_id, count in rows.all() if class_id is not None}
 
     def _term_enrollment(self, student: Student, term_id: int) -> Enrollment | None:
         for enrollment in student.enrollments:

@@ -63,15 +63,12 @@ class TeacherService:
         await self._get_or_404(teacher_id)
         classes = await self._repo.classes_for(teacher_id)
         today = date.today()
-        counts = dict(
-            (
-                await self._session.execute(
-                    select(Enrollment.class_id, func.count())
-                    .where(Enrollment.class_id.is_not(None))
-                    .group_by(Enrollment.class_id)
-                )
-            ).all()
+        rows = await self._session.execute(
+            select(Enrollment.class_id, func.count())
+            .where(Enrollment.class_id.is_not(None))
+            .group_by(Enrollment.class_id)
         )
+        counts = {class_id: count for class_id, count in rows.all() if class_id is not None}
         return [
             ClassOut.from_model(c, student_count=counts.get(c.id, 0), today=today)
             for c in classes

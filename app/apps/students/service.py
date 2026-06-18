@@ -6,13 +6,13 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.apps.students.activity import log_activity
 from app.apps.students.models import (
     ActivityKind,
     Enrollment,
     EnrollmentStatus,
     Student,
 )
-from app.apps.students.activity import log_activity
 from app.apps.students.repository import StudentRepository, provisional_code
 from app.apps.students.schemas import (
     ActivityOut,

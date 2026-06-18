@@ -2,7 +2,7 @@
 
 import enum
 from datetime import date, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import JSON, Date, DateTime, Enum, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -197,7 +197,7 @@ class StudentActivity(AuditedBase):
     )
     message: Mapped[str] = mapped_column(String(255), nullable=False)
     # Optional structured detail, e.g. {"amount": 500} for a payment event.
-    meta: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    meta: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
     # The acting user, resolved through the inherited ``createdBy`` FK.
     actor: Mapped["User | None"] = relationship(
