@@ -173,6 +173,43 @@ def _structurally_ok(
     return True
 
 
+def _same_type_today(placed: list[Placement], class_id: int, weekday: int,
+                     class_lesson_id: int) -> list[Placement]:
+    return [p for p in placed if p.class_id == class_id and p.weekday == weekday
+            and p.class_lesson_id == class_lesson_id]
+
+
+def _types_on_day(placed: list[Placement], class_id: int, weekday: int,
+                  lesson_type_by_cl: dict[int, str]) -> set[str]:
+    return {lesson_type_by_cl[p.class_lesson_id] for p in placed
+            if p.class_id == class_id and p.weekday == weekday
+            and p.class_lesson_id in lesson_type_by_cl}
+
+
+def _score_slot(unit: LessonReq, slot: Slot, placed: list[Placement],
+                crules: ClassRules, lesson_type_by_cl: dict[int, str]) -> int:
+    score = 0
+    same = _same_type_today(placed, unit.class_id, slot.weekday, unit.class_lesson_id)
+    if unit.consecutive:
+        # Reward same-day adjacency to an existing same-type session (C4).
+        if any(p.end == slot.start or slot.end == p.start for p in same):
+            score += 100
+        elif same:
+            score += 20
+    else:
+        # Spread: penalize stacking the same lesson on a day already used (C6).
+        score -= 30 * len(same)
+    # Separation (C7): penalize sharing a day with a separated lesson type.
+    present = _types_on_day(placed, unit.class_id, slot.weekday, lesson_type_by_cl)
+    for group in crules.separations:
+        others = {g for g in group if g != unit.lesson_type}
+        if unit.lesson_type in group and present.intersection(others):
+            score -= 60
+    # Earlier in the week/day is a mild tiebreaker for determinism.
+    score -= slot.weekday + minutes_between(time(0), slot.start) // 600
+    return score
+
+
 def generate(
     reqs: list[LessonReq], settings: GenSettings,
     class_rules: dict[int, ClassRules], teacher_rules: dict[int, TeacherRule],
@@ -180,6 +217,7 @@ def generate(
     units = _order(_explode(reqs), teacher_rules)
     placed: list[Placement] = []
     unplaced: list[Unplaced] = []
+    lesson_type_by_cl = {u.class_lesson_id: u.lesson_type for u in units}
 
     def backtrack(i: int) -> bool:
         if i == len(units):
@@ -187,7 +225,12 @@ def generate(
         unit = units[i]
         crules = class_rules.get(unit.class_id, ClassRules())
         trule = teacher_rules.get(unit.teacher_id) if unit.teacher_id is not None else None
-        for slot in _candidate_slots(unit, settings, crules, trule):
+        candidates = _candidate_slots(unit, settings, crules, trule)
+        candidates.sort(
+            key=lambda s: (-_score_slot(unit, s, placed, crules, lesson_type_by_cl),
+                           s.weekday, s.start),
+        )
+        for slot in candidates:
             if _structurally_ok(unit, slot, placed, settings, crules, trule):
                 placed.append(Placement(unit.class_lesson_id, unit.class_id, unit.teacher_id,
                                         slot.weekday, slot.start, slot.end))
