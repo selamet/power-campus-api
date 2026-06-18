@@ -14,6 +14,7 @@ from app.apps.classes.router import router as classes_router
 from app.apps.dashboard.router import router as dashboard_router
 from app.apps.invites.router import router as invites_router
 from app.apps.payments.router import router as payments_router
+from app.apps.schedule.router import router as schedule_router
 from app.apps.students.router import router as students_router
 from app.apps.teachers.router import router as teachers_router
 from app.apps.terms.router import router as terms_router
@@ -65,6 +66,7 @@ def create_app() -> FastAPI:
     app.include_router(invites_router, prefix=settings.api_v1_prefix)
     app.include_router(payments_router, prefix=settings.api_v1_prefix)
     app.include_router(dashboard_router, prefix=settings.api_v1_prefix)
+    app.include_router(schedule_router, prefix=settings.api_v1_prefix)
 
     @app.get("/health", tags=["health"])
     async def health() -> dict[str, Any]:
