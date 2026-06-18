@@ -35,3 +35,4 @@ htmlcov/
 
 # Local-only brainstorming/planning docs (specs & plans) — not pushed
 docs/superpowers/
+/pytest-of-selametsamli/
