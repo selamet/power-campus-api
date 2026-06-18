@@ -73,8 +73,15 @@ class ClassService:
         self._repo.add(school_class)
         try:
             # Flush to surface the unique violation and to obtain the id needed
-            # before pointing enrollments at the class.
+            # before attaching lessons and pointing enrollments at the class.
             await self._session.flush()
+            # Local import avoids a circular import (lesson_service imports this
+            # module's exception types).
+            from app.apps.classes.lesson_service import LessonService
+
+            await LessonService(self._session).seed_for_new_class(
+                school_class, payload.lessons
+            )
             if payload.auto_assign is not None:
                 await self._assign_by_criteria(school_class, payload.auto_assign)
             await self._session.commit()
@@ -211,7 +218,7 @@ class ClassService:
             .where(Enrollment.class_id.is_not(None))
             .group_by(Enrollment.class_id)
         )
-        return dict(rows.all())
+        return {class_id: count for class_id, count in rows.all() if class_id is not None}
 
     def _term_enrollment(self, student: Student, term_id: int) -> Enrollment | None:
         for enrollment in student.enrollments:

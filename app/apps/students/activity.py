@@ -4,6 +4,8 @@ Kept in its own module (not ``service.py``) so the payments service can import
 it without a circular dependency.
 """
 
+from typing import Any
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.apps.students.models import ActivityKind, Student, StudentActivity
@@ -14,7 +16,7 @@ def log_activity(
     student: Student,
     kind: ActivityKind,
     message: str,
-    meta: dict | None = None,
+    meta: dict[str, Any] | None = None,
 ) -> None:
     """Append an activity row inside the caller's transaction.
 

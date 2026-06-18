@@ -6,6 +6,7 @@ database keeps ``students`` and ``enrollments`` separate.
 """
 
 from datetime import date, datetime
+from typing import Any
 
 from pydantic import EmailStr, Field
 
@@ -216,7 +217,7 @@ class ActivityOut(CamelModel):
     id: int
     kind: ActivityKind
     message: str
-    meta: dict | None
+    meta: dict[str, Any] | None
     actor_name: str | None
     created_at: datetime
 

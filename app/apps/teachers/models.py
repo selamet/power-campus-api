@@ -38,8 +38,12 @@ class Teacher(AuditedBase):
         nullable=False,
     )
     # Teaching profile: which languages and CEFR levels the teacher can teach.
-    languages: Mapped[list] = mapped_column(JSON, server_default="[]", nullable=False, default=list)
-    levels: Mapped[list] = mapped_column(JSON, server_default="[]", nullable=False, default=list)
+    languages: Mapped[list[str]] = mapped_column(
+        JSON, server_default="[]", nullable=False, default=list
+    )
+    levels: Mapped[list[str]] = mapped_column(
+        JSON, server_default="[]", nullable=False, default=list
+    )
     note: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # Reserved for a future teacher login; unused for now (mirrors Student.user_id).
     user_id: Mapped[int | None] = mapped_column(

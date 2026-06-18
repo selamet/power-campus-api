@@ -339,9 +339,9 @@ async def seed_demo() -> None:
                     enrollment.term_id == current_term.id
                     and enrollment.status is EnrollmentStatus.active
                 ):
-                    school_class = classes.get(level_code(enrollment.level))
-                    if school_class is not None:
-                        enrollment.class_id = school_class.id
+                    assigned_class = classes.get(level_code(enrollment.level))
+                    if assigned_class is not None:
+                        enrollment.class_id = assigned_class.id
 
         await session.commit()
 

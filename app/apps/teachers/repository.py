@@ -32,7 +32,7 @@ class TeacherRepository:
             .where(SchoolClass.teacher_id.is_not(None))
             .group_by(SchoolClass.teacher_id)
         )
-        return dict(rows.all())
+        return {teacher_id: count for teacher_id, count in rows.all() if teacher_id is not None}
 
     async def class_count_for(self, teacher_id: int) -> int:
         count = await self._session.scalar(
