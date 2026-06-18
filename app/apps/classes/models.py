@@ -48,3 +48,44 @@ class SchoolClass(AuditedBase):
     teacher: Mapped["Teacher | None"] = relationship(
         "Teacher", lazy="selectin", back_populates="classes"
     )
+
+    lessons: Mapped[list["ClassLesson"]] = relationship(
+        "ClassLesson",
+        back_populates="school_class",
+        cascade="all, delete-orphan",
+        order_by="ClassLesson.id",
+    )
+
+
+class ClassLesson(AuditedBase):
+    """A lesson within a class: a type, weekly session count, duration and an
+    optional teacher. A class seeds four by default; rows are freely added or
+    hard-deleted. Same type may repeat — there is no unique constraint."""
+
+    __tablename__ = "class_lessons"
+
+    class_id: Mapped[int] = mapped_column(
+        "classId",
+        ForeignKey("classes.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    # Stores a LessonType value (e.g. "speaking"); see app.apps.classes.lessons.
+    lesson_type: Mapped[str] = mapped_column("lessonType", String(32), nullable=False)
+    teacher_id: Mapped[int | None] = mapped_column(
+        "teacherId",
+        ForeignKey("teachers.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
+    session_duration_min: Mapped[int] = mapped_column(
+        "sessionDurationMin", Integer, nullable=False
+    )
+    sessions_per_week: Mapped[int] = mapped_column(
+        "sessionsPerWeek", Integer, nullable=False
+    )
+
+    teacher: Mapped["Teacher | None"] = relationship("Teacher", lazy="selectin")
+    school_class: Mapped["SchoolClass"] = relationship(
+        "SchoolClass", back_populates="lessons"
+    )
