@@ -5,6 +5,7 @@ from typing import Any
 
 from pydantic import Field
 
+from app.apps.classes.lessons import LessonType
 from app.core.schemas import CamelModel
 
 
@@ -36,3 +37,16 @@ class ScheduleConfigUpdate(CamelModel):
 class ScheduleConfigOut(CamelModel):
     class_id: int
     rules: dict[str, Any]
+
+
+class SessionOut(CamelModel):
+    id: int
+    class_lesson_id: int
+    class_id: int
+    class_name: str
+    lesson_type: LessonType
+    teacher_id: int | None
+    teacher_name: str | None
+    weekday: int
+    start_time: time
+    end_time: time

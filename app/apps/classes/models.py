@@ -82,5 +82,5 @@ class ClassLesson(AuditedBase):
 
     teacher: Mapped["Teacher | None"] = relationship("Teacher", lazy="selectin")
     school_class: Mapped["SchoolClass"] = relationship(
-        "SchoolClass", back_populates="lessons"
+        "SchoolClass", back_populates="lessons", lazy="selectin"
     )

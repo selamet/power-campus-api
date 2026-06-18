@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends
 from app.apps.schedule.schemas import (
     ScheduleConfigOut,
     ScheduleConfigUpdate,
+    SessionOut,
     TermSettingsOut,
     TermSettingsUpdate,
 )
@@ -43,3 +44,20 @@ async def put_config(
     class_id: int, payload: ScheduleConfigUpdate, session: SessionDep, _: CanWrite
 ) -> ScheduleConfigOut:
     return await ScheduleService(session).upsert_config(class_id, payload)
+
+
+@router.get("/classes/{class_id}/schedule", response_model=list[SessionOut])
+async def class_schedule(class_id: int, session: SessionDep, _: CanRead) -> list[SessionOut]:
+    return await ScheduleService(session).class_schedule(class_id)
+
+
+@router.get("/teachers/{teacher_id}/schedule", response_model=list[SessionOut])
+async def teacher_schedule(teacher_id: int, session: SessionDep, _: CanRead) -> list[SessionOut]:
+    return await ScheduleService(session).teacher_schedule(teacher_id)
+
+
+@router.get("/terms/{term_id}/schedule", response_model=list[SessionOut])
+async def term_schedule(
+    term_id: int, session: SessionDep, _: CanRead, weekday: int | None = None
+) -> list[SessionOut]:
+    return await ScheduleService(session).term_schedule(term_id, weekday)

@@ -1,12 +1,18 @@
 """Schedule orchestration: settings, config, generation, apply, manual edits."""
 
+from typing import TYPE_CHECKING
+
 from sqlalchemy.ext.asyncio import AsyncSession
+
+if TYPE_CHECKING:
+    from app.apps.schedule.models import ScheduleSession
 
 from app.apps.schedule.models import ScheduleConfig, TermScheduleSettings
 from app.apps.schedule.repository import ScheduleRepository
 from app.apps.schedule.schemas import (
     ScheduleConfigOut,
     ScheduleConfigUpdate,
+    SessionOut,
     TermSettingsOut,
     TermSettingsUpdate,
 )
@@ -69,3 +75,34 @@ class ScheduleService:
         await self._session.commit()
         await self._session.refresh(existing)
         return ScheduleConfigOut(class_id=existing.class_id, rules=existing.rules)
+
+    @staticmethod
+    def _session_out(s: "ScheduleSession") -> SessionOut:
+        from app.apps.classes.naming import class_display_name
+
+        cl = s.class_lesson
+        cls = cl.school_class
+        return SessionOut(
+            id=s.id,
+            class_lesson_id=cl.id,
+            class_id=cl.class_id,
+            class_name=class_display_name(cls.level, cls.section) if cls else "",
+            lesson_type=cl.lesson_type,
+            teacher_id=cl.teacher_id,
+            teacher_name=cl.teacher.name if cl.teacher else None,
+            weekday=s.weekday,
+            start_time=s.start_time,
+            end_time=s.end_time,
+        )
+
+    async def class_schedule(self, class_id: int) -> list[SessionOut]:
+        rows = await self._repo.sessions_for_classes([class_id])
+        return [self._session_out(s) for s in rows]
+
+    async def teacher_schedule(self, teacher_id: int) -> list[SessionOut]:
+        rows = await self._repo.sessions_for_teacher(teacher_id)
+        return [self._session_out(s) for s in rows]
+
+    async def term_schedule(self, term_id: int, weekday: int | None) -> list[SessionOut]:
+        rows = await self._repo.sessions_for_term(term_id, weekday)
+        return [self._session_out(s) for s in rows]

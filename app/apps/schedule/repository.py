@@ -1,9 +1,14 @@
 """Schedule data access."""
 
+from typing import TYPE_CHECKING
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.apps.schedule.models import ScheduleConfig, TermScheduleSettings
+
+if TYPE_CHECKING:
+    from app.apps.schedule.models import ScheduleSession
 
 
 class ScheduleRepository:
@@ -22,3 +27,41 @@ class ScheduleRepository:
         return await self._session.scalar(  # type: ignore[no-any-return]
             select(ScheduleConfig).where(ScheduleConfig.class_id == class_id)
         )
+
+    async def sessions_for_classes(self, class_ids: list[int]) -> list["ScheduleSession"]:
+        from app.apps.classes.models import ClassLesson
+        from app.apps.schedule.models import ScheduleSession
+
+        return list(
+            await self._session.scalars(
+                select(ScheduleSession)
+                .join(ClassLesson, ScheduleSession.class_lesson_id == ClassLesson.id)
+                .where(ClassLesson.class_id.in_(class_ids))
+            )
+        )
+
+    async def sessions_for_teacher(self, teacher_id: int) -> list["ScheduleSession"]:
+        from app.apps.classes.models import ClassLesson
+        from app.apps.schedule.models import ScheduleSession
+
+        return list(
+            await self._session.scalars(
+                select(ScheduleSession)
+                .join(ClassLesson, ScheduleSession.class_lesson_id == ClassLesson.id)
+                .where(ClassLesson.teacher_id == teacher_id)
+            )
+        )
+
+    async def sessions_for_term(self, term_id: int, weekday: int | None) -> list["ScheduleSession"]:
+        from app.apps.classes.models import ClassLesson, SchoolClass
+        from app.apps.schedule.models import ScheduleSession
+
+        stmt = (
+            select(ScheduleSession)
+            .join(ClassLesson, ScheduleSession.class_lesson_id == ClassLesson.id)
+            .join(SchoolClass, ClassLesson.class_id == SchoolClass.id)
+            .where(SchoolClass.term_id == term_id)
+        )
+        if weekday is not None:
+            stmt = stmt.where(ScheduleSession.weekday == weekday)
+        return list(await self._session.scalars(stmt))
