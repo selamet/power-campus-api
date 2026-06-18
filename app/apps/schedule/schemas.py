@@ -72,3 +72,8 @@ class ReportItem(CamelModel):
 class GeneratePreview(CamelModel):
     sessions: list[SessionPreview]
     report: list[ReportItem]
+
+
+class ApplyResult(CamelModel):
+    applied: int
+    report: list[ReportItem]

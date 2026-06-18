@@ -7,11 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 if TYPE_CHECKING:
     from app.apps.schedule.generator import LessonReq
-    from app.apps.schedule.models import ScheduleSession
 
-from app.apps.schedule.models import ScheduleConfig, TermScheduleSettings
+from app.apps.schedule.models import ScheduleConfig, ScheduleSession, TermScheduleSettings
 from app.apps.schedule.repository import ScheduleRepository
 from app.apps.schedule.schemas import (
+    ApplyResult,
     GeneratePreview,
     ReportItem,
     ScheduleConfigOut,
@@ -221,3 +221,36 @@ class ScheduleService:
             )
         )
         return await self._build_and_run(term_id, ids)
+
+    async def _apply(self, term_id: int, class_ids: list[int]) -> ApplyResult:
+        preview = await self._build_and_run(term_id, class_ids)
+        await self._repo.delete_sessions_for_classes(class_ids)
+        for s in preview.sessions:
+            self._repo.add(
+                ScheduleSession(
+                    class_lesson_id=s.class_lesson_id,
+                    weekday=s.weekday,
+                    start_time=s.start_time,
+                    end_time=s.end_time,
+                )
+            )
+        await self._session.commit()
+        return ApplyResult(applied=len(preview.sessions), report=preview.report)
+
+    async def apply_for_class(self, class_id: int) -> ApplyResult:
+        from app.apps.classes.models import SchoolClass
+
+        cls = await self._session.get(SchoolClass, class_id)
+        if cls is None:
+            return ApplyResult(applied=0, report=[])
+        return await self._apply(cls.term_id, [class_id])
+
+    async def apply_for_term(self, term_id: int) -> ApplyResult:
+        from app.apps.classes.models import SchoolClass
+
+        ids = list(
+            await self._session.scalars(
+                select(SchoolClass.id).where(SchoolClass.term_id == term_id)
+            )
+        )
+        return await self._apply(term_id, ids)

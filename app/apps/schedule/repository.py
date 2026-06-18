@@ -94,3 +94,22 @@ class ScheduleRepository:
             select(ScheduleConfig).where(ScheduleConfig.class_id.in_(class_ids))
         )
         return {c.class_id: c.rules for c in rows}
+
+    async def delete_sessions_for_classes(self, class_ids: list[int]) -> None:
+        from sqlalchemy import delete
+
+        from app.apps.classes.models import ClassLesson
+        from app.apps.schedule.models import ScheduleSession
+
+        if not class_ids:
+            return
+        cl_ids = list(
+            await self._session.scalars(
+                select(ClassLesson.id).where(ClassLesson.class_id.in_(class_ids))
+            )
+        )
+        if not cl_ids:
+            return
+        await self._session.execute(
+            delete(ScheduleSession).where(ScheduleSession.class_lesson_id.in_(cl_ids))
+        )
