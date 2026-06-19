@@ -3,7 +3,7 @@
 from datetime import time
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import JSON, ForeignKey, SmallInteger, Time, UniqueConstraint
+from sqlalchemy import JSON, Boolean, ForeignKey, SmallInteger, Time, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base import AuditedBase
@@ -67,5 +67,6 @@ class ScheduleSession(AuditedBase):
     weekday: Mapped[int] = mapped_column(SmallInteger, nullable=False)  # 0=Mon..6=Sun
     start_time: Mapped[time] = mapped_column("startTime", Time, nullable=False)
     end_time: Mapped[time] = mapped_column("endTime", Time, nullable=False)
+    locked: Mapped[bool] = mapped_column("locked", Boolean, default=False, nullable=False)
 
     class_lesson: Mapped["ClassLesson"] = relationship("ClassLesson", lazy="selectin")

@@ -42,4 +42,19 @@ async def test_schedule_tables_create_and_insert(tmp_path):
     async with factory() as s:
         row = (await s.execute(select(TermScheduleSettings))).scalar_one()
         assert row.day_windows == day_windows_val
+    async with factory() as s:
+        s.add(
+            ScheduleSession(
+                class_lesson_id=2,
+                weekday=2,
+                start_time=time(11),
+                end_time=time(11, 45),
+                locked=True,
+            )
+        )
+        await s.commit()
+    async with factory() as s:
+        rows = list((await s.execute(select(ScheduleSession).order_by(ScheduleSession.id))).scalars())
+        assert rows[0].locked is False  # first record (no locked kwarg) uses default
+        assert rows[1].locked is True
     await engine.dispose()
