@@ -5,7 +5,7 @@ reported as Unplaced. Limiting rules (B) shrink the candidate slots. Placement
 preferences (C) are layered in by candidate ordering (see _candidate_slots).
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, time, timedelta
 
 from app.apps.schedule.conflicts import Slot, minutes_between, overlaps, within_window
@@ -219,11 +219,23 @@ def _score_slot(unit: LessonReq, slot: Slot, placed: list[Placement],
 def generate(
     reqs: list[LessonReq], settings: GenSettings,
     class_rules: dict[int, ClassRules], teacher_rules: dict[int, TeacherRule],
+    fixed: list[Placement] | None = None,
 ) -> GenResult:
-    units = _order(_explode(reqs), teacher_rules)
-    placed: list[Placement] = []
+    fixed = fixed or []
+    fixed_by_cl: dict[int, int] = {}
+    for fp in fixed:
+        fixed_by_cl[fp.class_lesson_id] = fixed_by_cl.get(fp.class_lesson_id, 0) + 1
+    adjusted = [
+        replace(r, count=max(0, r.count - fixed_by_cl.get(r.class_lesson_id, 0)))
+        for r in reqs
+    ]
+    units = _order(_explode(adjusted), teacher_rules)
+    placed: list[Placement] = list(fixed)
     unplaced: list[Unplaced] = []
-    lesson_type_by_cl = {u.class_lesson_id: u.lesson_type for u in units}
+    base = len(placed)
+    # lesson type haritası TÜM reqs'ten (sayımı sıfırlanmış dersler dahil) kurulur,
+    # böylece fixed yerleşimler ayrıştırma/spread skorlamasında doğru sayılır.
+    lesson_type_by_cl = {r.class_lesson_id: r.lesson_type for r in reqs}
 
     def backtrack(i: int) -> bool:
         if i == len(units):
@@ -249,4 +261,4 @@ def generate(
         return backtrack(i + 1)
 
     backtrack(0)
-    return GenResult(placements=placed, unplaced=unplaced)
+    return GenResult(placements=placed[base:], unplaced=unplaced)

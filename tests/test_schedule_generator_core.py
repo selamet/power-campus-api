@@ -75,3 +75,26 @@ def test_per_day_window_restricts_placement():
     assert p.weekday == 5
     assert p.start == time(10, 0)
     assert p.end == time(10, 45)
+
+
+def test_fixed_placement_is_occupied_and_deducted_from_count():
+    from datetime import time
+    from app.apps.schedule.generator import ClassRules, GenSettings, LessonReq, Placement, generate
+
+    # Pzt 09:00-11:00 penceresi, 60 dk ünite → iki slot: 09-10 ve 10-11.
+    settings = GenSettings(
+        working_days=[0], day_start=time(9), day_end=time(11),
+        per_day_default=5, break_min=0,
+    )
+    reqs = [LessonReq(class_lesson_id=1, class_id=1, teacher_id=None,
+                      lesson_type="reading", duration_min=60, count=2)]
+    fixed = [Placement(class_lesson_id=1, class_id=1, teacher_id=None,
+                       weekday=0, start=time(9), end=time(10))]
+    result = generate(reqs, settings, {1: ClassRules()}, {}, fixed=fixed)
+
+    # count=2, biri fixed → yalnız bir yeni yerleşim; tek boş slot 10:00-11:00
+    assert len(result.placements) == 1
+    p = result.placements[0]
+    assert (p.weekday, p.start, p.end) == (0, time(10), time(11))
+    # fixed çıktı içinde yok
+    assert all(pl.start != time(9) for pl in result.placements)
