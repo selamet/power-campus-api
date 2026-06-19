@@ -11,15 +11,19 @@ It never runs on import; the wipe only happens when invoked as a script.
 
 import asyncio
 import random
-from datetime import date, timedelta
+from datetime import date, time, timedelta
 
 import app.models  # noqa: F401  -- registers every model on Base.metadata
-from app.apps.classes.models import SchoolClass
+from app.apps.classes.lessons import LessonType
+from app.apps.classes.models import ClassLesson, SchoolClass
 from app.apps.classes.naming import level_code
 from app.apps.payments.models import Payment
 from app.apps.payments.service import PaymentService
+from app.apps.schedule.models import TermScheduleSettings
+from app.apps.schedule.service import ScheduleService
 from app.apps.students.models import Enrollment, EnrollmentStatus, Student, StudentSource
 from app.apps.students.repository import provisional_code
+from app.apps.teachers.models import Teacher, TeacherStatus
 from app.apps.terms.models import Term
 from app.apps.users.models import User, UserPermission, UserRole
 from app.apps.users.permissions import Permission
@@ -29,6 +33,10 @@ from app.core.db import AsyncSessionLocal, engine
 from app.core.security import hash_password
 
 _CODE_OFFSET = 1059  # mirrors StudentRepository: student id=1 -> PA-1060
+
+TEACHER_NAMES = (
+    "Aylin Hoca", "Kemal Hoca", "Derya Hoca", "Serkan Hoca", "Pelin Hoca",
+)
 
 FIRST_NAMES = (
     "Ahmet", "Mehmet", "Mustafa", "Ali", "Hüseyin", "Hasan", "İbrahim", "Emre",
@@ -250,6 +258,7 @@ async def seed_demo() -> None:
     random.seed(42)
     await _reset_schema()
     today = date.today()
+    applied_classes = 0
 
     async with AsyncSessionLocal() as session:
         # Admin + three scoped staff accounts.
@@ -343,6 +352,46 @@ async def seed_demo() -> None:
                     if assigned_class is not None:
                         enrollment.class_id = assigned_class.id
 
+        # Teachers (active), round-robin assigned to each class's lessons.
+        teachers = [Teacher(name=name, status=TeacherStatus.active) for name in TEACHER_NAMES]
+        session.add_all(teachers)
+        await session.flush()  # assign teacher ids
+
+        lesson_types = list(LessonType)
+        ti = 0
+        for school_class in classes.values():
+            for lt in lesson_types:
+                session.add(
+                    ClassLesson(
+                        class_id=school_class.id,
+                        lesson_type=lt.value,
+                        teacher_id=teachers[ti % len(teachers)].id,
+                    )
+                )
+                ti += 1
+
+        # Per-term schedule settings: Mon-Fri, 09:00-18:00, 3/day, 45 min.
+        session.add(
+            TermScheduleSettings(
+                term_id=current_term.id,
+                working_days=[0, 1, 2, 3, 4],
+                day_start=time(9, 0),
+                day_end=time(18, 0),
+                default_duration=45,
+                default_per_day=3,
+                break_min=0,
+                teacher_rules={},
+            )
+        )
+        await session.flush()
+
+        # Pre-generate + apply a real schedule for the first couple of classes so
+        # the hub shows populated calendars out of the box; the rest stay empty.
+        service = ScheduleService(session)
+        for school_class in list(classes.values())[:2]:
+            await service.apply_for_class(school_class.id)
+        applied_classes = min(2, len(classes))
+
         await session.commit()
 
     print("Database reset and seeded.")
@@ -352,6 +401,9 @@ async def seed_demo() -> None:
     print("  Students : 100")
     print("  Terms    : 2025 Bahar, 2026 Güz (current), 2026 Bahar")
     print("  Classes  : one section per level in 2026 Güz, active students assigned")
+    print(f"  Teachers : {len(TEACHER_NAMES)}")
+    print("  Lessons  : 4 per class (teachers assigned), schedule settings on current term")
+    print(f"  Schedule : applied for {applied_classes} class(es); the rest are empty")
 
 
 if __name__ == "__main__":
