@@ -30,6 +30,7 @@ class GenSettings:
     day_end: time
     per_day_default: int
     break_min: int
+    day_windows: dict[int, tuple[time, time]] = field(default_factory=dict)
 
 
 @dataclass
@@ -78,12 +79,16 @@ def _add_minutes(t: time, minutes: int) -> time:
     return (datetime.combine(_BASE, t) + timedelta(minutes=minutes)).time()
 
 
-def _day_starts(settings: GenSettings, duration: int) -> list[time]:
-    """All candidate start times in a day, stepping by duration+break."""
-    step = duration + settings.break_min
+def _window_for(settings: GenSettings, weekday: int) -> tuple[time, time]:
+    return settings.day_windows.get(weekday, (settings.day_start, settings.day_end))
+
+
+def _day_starts(day_start: time, day_end: time, break_min: int, duration: int) -> list[time]:
+    """All candidate start times within [day_start, day_end), stepping by duration+break."""
+    step = duration + break_min
     starts: list[time] = []
-    cur = settings.day_start
-    while minutes_between(cur, settings.day_end) >= duration:
+    cur = day_start
+    while minutes_between(cur, day_end) >= duration:
         starts.append(cur)
         cur = _add_minutes(cur, step)
     return starts
@@ -122,10 +127,11 @@ def _candidate_slots(
         days = [d for d in days if d not in trule.unavailable_weekdays]
     slots: list[Slot] = []
     for d in days:
-        for st in _day_starts(settings, unit.duration_min):
+        ds, de = _window_for(settings, d)
+        for st in _day_starts(ds, de, settings.break_min, unit.duration_min):
             end = _add_minutes(st, unit.duration_min)
             slot = Slot(d, st, end)
-            if within_window(slot, settings.day_start, settings.day_end):
+            if within_window(slot, ds, de):
                 slots.append(slot)
     return slots
 

@@ -55,3 +55,23 @@ def test_teacher_unavailable_weekday():
     reqs = [LessonReq(1, 100, 7, "reading", 45, 1)]
     res = generate(reqs, SETTINGS, {}, {7: TeacherRule(unavailable_weekdays=[0, 1, 2, 3])})
     assert res.placements[0].weekday == 4
+
+
+def test_per_day_window_restricts_placement():
+    from datetime import time
+    from app.apps.schedule.generator import ClassRules, GenSettings, LessonReq, generate
+
+    # Saturday (weekday 5) only open 10:00-11:00; a 45-min session must land there.
+    settings = GenSettings(
+        working_days=[5], day_start=time(9), day_end=time(18),
+        per_day_default=3, break_min=0,
+        day_windows={5: (time(10, 0), time(11, 0))},
+    )
+    reqs = [LessonReq(class_lesson_id=1, class_id=1, teacher_id=None,
+                      lesson_type="reading", duration_min=45, count=1)]
+    result = generate(reqs, settings, {1: ClassRules()}, {})
+    assert len(result.placements) == 1
+    p = result.placements[0]
+    assert p.weekday == 5
+    assert p.start == time(10, 0)
+    assert p.end == time(10, 45)

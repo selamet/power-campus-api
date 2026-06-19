@@ -146,12 +146,16 @@ class ScheduleService:
         )
 
         settings_out = await self.get_settings(term_id)
+        day_windows: dict[int, tuple[time, time]] = {}
+        for key, win in settings_out.day_windows.items():
+            day_windows[int(key)] = (win["start"], win["end"])
         gs = GenSettings(
             working_days=settings_out.working_days,
             day_start=settings_out.day_start,
             day_end=settings_out.day_end,
             per_day_default=settings_out.default_per_day,
             break_min=settings_out.break_min,
+            day_windows=day_windows,
         )
         trules: dict[int, TeacherRule] = {}
         for key, val in settings_out.teacher_rules.items():
