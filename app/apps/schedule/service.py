@@ -173,9 +173,10 @@ class ScheduleService:
             cfg_lessons = {item["lessonType"]: item for item in rules.get("lessons", [])}
             for cl in lessons_by_class.get(cid, []):
                 teacher_names[cl.teacher_id] = cl.teacher.name if cl.teacher else None
-                spec = cfg_lessons.get(cl.lesson_type)
-                if spec is None:
-                    continue
+                # A lesson without an explicit builder rule still gets scheduled
+                # with sensible defaults (default duration, one session/week), so
+                # generation works out of the box; the builder overrides per lesson.
+                spec = cfg_lessons.get(cl.lesson_type, {})
                 reqs.append(
                     LessonReq(
                         class_lesson_id=cl.id,
