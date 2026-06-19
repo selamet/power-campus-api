@@ -49,6 +49,7 @@ def _settings_out(s: TermScheduleSettings) -> TermSettingsOut:
         default_per_day=s.default_per_day,
         break_min=s.break_min,
         teacher_rules=s.teacher_rules,
+        day_windows=s.day_windows,
     )
 
 
@@ -69,6 +70,11 @@ class ScheduleService:
     ) -> TermSettingsOut:
         existing = await self._repo.get_settings(term_id)
         data = payload.model_dump()
+        # day_windows values are time objects — serialize to strings for JSON storage
+        data["day_windows"] = {
+            day: {k: v.isoformat() for k, v in window.items()}
+            for day, window in data["day_windows"].items()
+        }
         if existing is None:
             existing = TermScheduleSettings(term_id=term_id, **data)
             self._repo.add(existing)

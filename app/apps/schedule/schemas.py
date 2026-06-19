@@ -17,6 +17,7 @@ class TermSettingsUpdate(CamelModel):
     default_per_day: int = Field(default=3, ge=1)
     break_min: int = Field(default=0, ge=0)
     teacher_rules: dict[str, Any] = Field(default_factory=dict)
+    day_windows: dict[str, dict[str, time]] = Field(default_factory=dict)
 
 
 class TermSettingsOut(CamelModel):
@@ -28,6 +29,7 @@ class TermSettingsOut(CamelModel):
     default_per_day: int
     break_min: int
     teacher_rules: dict[str, Any]
+    day_windows: dict[str, dict[str, time]]
 
 
 class ScheduleConfigUpdate(CamelModel):
