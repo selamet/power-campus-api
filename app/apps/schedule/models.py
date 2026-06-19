@@ -36,6 +36,9 @@ class TermScheduleSettings(AuditedBase):
     teacher_rules: Mapped[dict[str, Any]] = mapped_column(
         "teacherRules", JSON, default=dict, nullable=False
     )
+    day_windows: Mapped[dict[str, Any]] = mapped_column(
+        "dayWindows", JSON, default=dict, nullable=False
+    )
 
 
 class ScheduleConfig(AuditedBase):
