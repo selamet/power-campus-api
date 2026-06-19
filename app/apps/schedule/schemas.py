@@ -64,6 +64,7 @@ class SessionPreview(CamelModel):
     weekday: int
     start_time: time
     end_time: time
+    locked: bool = False
 
 
 class ReportItem(CamelModel):

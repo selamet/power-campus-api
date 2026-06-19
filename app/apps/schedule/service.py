@@ -142,6 +142,7 @@ class ScheduleService:
             ClassRules,
             GenSettings,
             LessonReq,
+            Placement,
             TeacherRule,
             generate,
         )
@@ -165,6 +166,18 @@ class ScheduleService:
                 max_per_day=val.get("maxPerDay"),
                 max_per_week=val.get("maxPerWeek"),
             )
+        locked_rows = await self._repo.locked_sessions_for_classes(class_ids)
+        fixed = [
+            Placement(
+                class_lesson_id=s.class_lesson.id,
+                class_id=s.class_lesson.class_id,
+                teacher_id=s.class_lesson.teacher_id,
+                weekday=s.weekday,
+                start=s.start_time,
+                end=s.end_time,
+            )
+            for s in locked_rows
+        ]
         configs = await self._repo.configs_for_classes(class_ids)
         lessons_by_class: dict[int, list[ClassLesson]] = {}
         for cl in await self._repo.class_lessons_for_term(term_id):
@@ -201,8 +214,22 @@ class ScheduleService:
                     )
                 )
 
-        result = generate(reqs, gs, crules, trules)
-        sessions = [
+        result = generate(reqs, gs, crules, trules, fixed=fixed)
+        locked_previews = [
+            SessionPreview(
+                class_lesson_id=s.class_lesson.id,
+                class_id=s.class_lesson.class_id,
+                lesson_type=s.class_lesson.lesson_type,
+                teacher_id=s.class_lesson.teacher_id,
+                teacher_name=s.class_lesson.teacher.name if s.class_lesson.teacher else None,
+                weekday=s.weekday,
+                start_time=s.start_time,
+                end_time=s.end_time,
+                locked=True,
+            )
+            for s in locked_rows
+        ]
+        generated = [
             SessionPreview(
                 class_lesson_id=p.class_lesson_id,
                 class_id=p.class_id,
@@ -212,9 +239,11 @@ class ScheduleService:
                 weekday=p.weekday,
                 start_time=p.start,
                 end_time=p.end,
+                locked=False,
             )
             for p in result.placements
         ]
+        sessions = locked_previews + generated
         report = [
             ReportItem(
                 class_id=u.class_id,
@@ -245,8 +274,11 @@ class ScheduleService:
 
     async def _apply(self, term_id: int, class_ids: list[int]) -> ApplyResult:
         preview = await self._build_and_run(term_id, class_ids)
-        await self._repo.delete_sessions_for_classes(class_ids)
+        await self._repo.delete_unlocked_sessions_for_classes(class_ids)
+        applied = 0
         for s in preview.sessions:
+            if s.locked:
+                continue  # locked session already persisted, do not re-insert
             self._repo.add(
                 ScheduleSession(
                     class_lesson_id=s.class_lesson_id,
@@ -255,8 +287,9 @@ class ScheduleService:
                     end_time=s.end_time,
                 )
             )
+            applied += 1
         await self._session.commit()
-        return ApplyResult(applied=len(preview.sessions), report=preview.report)
+        return ApplyResult(applied=applied, report=preview.report)
 
     async def apply_for_class(self, class_id: int) -> ApplyResult:
         from app.apps.classes.models import SchoolClass
