@@ -120,6 +120,7 @@ class ScheduleService:
             weekday=s.weekday,
             start_time=s.start_time,
             end_time=s.end_time,
+            locked=s.locked,
         )
 
     async def class_schedule(self, class_id: int) -> list[SessionOut]:
@@ -321,6 +322,8 @@ class ScheduleService:
         obj = await self._repo.get_session_by_id(session_id)
         if obj is None:
             raise ConflictError("Oturum bulunamadı.")
+        if obj.locked:
+            raise ConflictError("Kilitli oturum taşınamaz. Önce kilidi açın.")
         await self._assert_no_conflict(
             obj.class_lesson_id,
             payload.weekday,
@@ -339,6 +342,17 @@ class ScheduleService:
         obj = await self._repo.get_session_by_id(session_id)
         if obj is None:
             return False
+        if obj.locked:
+            raise ConflictError("Kilitli oturum silinemez. Önce kilidi açın.")
         await self._repo.delete_session(obj)
         await self._session.commit()
         return True
+
+    async def set_lock(self, session_id: int, locked: bool) -> SessionOut:
+        obj = await self._repo.get_session_by_id(session_id)
+        if obj is None:
+            raise ConflictError("Oturum bulunamadı.")
+        obj.locked = locked
+        await self._session.commit()
+        await self._session.refresh(obj)
+        return self._session_out(obj)

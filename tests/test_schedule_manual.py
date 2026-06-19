@@ -43,3 +43,44 @@ async def test_delete_session(client, admin, login):
     sid = created.json()["id"]
     deleted = await client.delete(f"{API}/schedule/sessions/{sid}", headers=h)
     assert deleted.status_code == 204
+
+
+@pytest.mark.asyncio
+async def test_lock_then_move_and_delete_are_rejected(client, admin, login):
+    h = await login("admin@test.com", "admin1234")
+    l1, _ = await _two_lessons_same_teacher(client, h)
+    created = await client.post(
+        f"{API}/schedule/sessions",
+        json={"classLessonId": l1, "weekday": 3, "startTime": "11:00", "endTime": "11:45"},
+        headers=h,
+    )
+    assert created.status_code == 201
+    created_id = created.json()["id"]
+
+    # kilitle
+    lock = await client.patch(
+        f"{API}/schedule/sessions/{created_id}/lock",
+        json={"locked": True}, headers=h,
+    )
+    assert lock.status_code == 200
+    assert lock.json()["locked"] is True
+
+    # kilitliyken taşıma reddedilir
+    move = await client.patch(
+        f"{API}/schedule/sessions/{created_id}",
+        json={"weekday": 3, "startTime": "13:00", "endTime": "13:45"}, headers=h,
+    )
+    assert move.status_code == 409
+
+    # kilitliyken silme reddedilir
+    dele = await client.delete(f"{API}/schedule/sessions/{created_id}", headers=h)
+    assert dele.status_code == 409
+
+    # kilidi aç → silme çalışır
+    unlock = await client.patch(
+        f"{API}/schedule/sessions/{created_id}/lock",
+        json={"locked": False}, headers=h,
+    )
+    assert unlock.json()["locked"] is False
+    ok = await client.delete(f"{API}/schedule/sessions/{created_id}", headers=h)
+    assert ok.status_code == 204

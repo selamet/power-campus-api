@@ -10,6 +10,7 @@ from app.apps.schedule.schemas import (
     ScheduleConfigOut,
     ScheduleConfigUpdate,
     SessionCreate,
+    SessionLock,
     SessionMove,
     SessionOut,
     TermSettingsOut,
@@ -109,5 +110,18 @@ async def move_session(
 
 @router.delete("/schedule/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_session(session_id: int, session: SessionDep, _: CanWrite) -> Response:
-    await ScheduleService(session).delete_session(session_id)
+    try:
+        await ScheduleService(session).delete_session(session_id)
+    except ConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.message) from exc
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch("/schedule/sessions/{session_id}/lock", response_model=SessionOut)
+async def lock_session(
+    session_id: int, payload: SessionLock, session: SessionDep, _: CanWrite
+) -> SessionOut:
+    try:
+        return await ScheduleService(session).set_lock(session_id, payload.locked)
+    except ConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.message) from exc

@@ -52,6 +52,7 @@ class SessionOut(CamelModel):
     weekday: int
     start_time: time
     end_time: time
+    locked: bool
 
 
 class SessionPreview(CamelModel):
@@ -92,3 +93,7 @@ class SessionMove(CamelModel):
     weekday: int = Field(ge=0, le=6)
     start_time: time
     end_time: time
+
+
+class SessionLock(CamelModel):
+    locked: bool
