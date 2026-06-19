@@ -107,4 +107,5 @@ async def test_permission_catalog_lists_modules(
         "classes",
         "teachers",
         "users",
+        "schedule",
     ]

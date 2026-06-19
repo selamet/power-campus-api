@@ -26,6 +26,8 @@ class Permission(enum.StrEnum):
     teachers_write = "teachers:write"
     users_read = "users:read"
     users_write = "users:write"
+    schedule_read = "schedule:read"
+    schedule_write = "schedule:write"
 
 
 #: All permission keys; ``admin`` accounts implicitly hold every one of these.
@@ -103,5 +105,10 @@ PERMISSION_CATALOG: tuple[PermissionGroup, ...] = (
         module="users",
         label="Yetkililer",
         permissions=(_read(Permission.users_read), _write(Permission.users_write)),
+    ),
+    PermissionGroup(
+        module="schedule",
+        label="Ders Programı",
+        permissions=(_read(Permission.schedule_read), _write(Permission.schedule_write)),
     ),
 )

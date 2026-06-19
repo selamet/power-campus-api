@@ -1,0 +1,100 @@
+from datetime import time
+
+from app.apps.schedule.generator import (
+    ClassRules, GenSettings, LessonReq, TeacherRule, generate,
+)
+
+SETTINGS = GenSettings(working_days=[0, 1, 2, 3, 4], day_start=time(9), day_end=time(12),
+                       per_day_default=3, break_min=0)
+
+
+def test_places_all_when_room():
+    reqs = [LessonReq(1, 100, 7, "reading", 45, 3)]
+    res = generate(reqs, SETTINGS, {}, {})
+    assert len(res.placements) == 3
+    assert not res.unplaced
+    # all within window 09:00-12:00
+    assert all(time(9) <= p.start and p.end <= time(12) for p in res.placements)
+
+
+def test_never_double_books_teacher_across_classes():
+    # Same teacher 7, two classes, lots of sessions in a tight window.
+    reqs = [LessonReq(1, 100, 7, "reading", 45, 3), LessonReq(2, 200, 7, "reading", 45, 3)]
+    res = generate(reqs, SETTINGS, {}, {})
+    placed = [p for p in res.placements if p.teacher_id == 7]
+    for i in range(len(placed)):
+        for j in range(i + 1, len(placed)):
+            a, b = placed[i], placed[j]
+            same = a.weekday == b.weekday and a.start < b.end and b.start < a.end
+            assert not same
+
+
+def test_respects_class_closed_weekday():
+    reqs = [LessonReq(1, 100, 7, "reading", 45, 2)]
+    res = generate(reqs, SETTINGS, {100: ClassRules(closed_weekdays=[0, 1, 2, 3])}, {})
+    assert all(p.weekday == 4 for p in res.placements)
+
+
+def test_per_day_cap_limits_same_day():
+    reqs = [LessonReq(1, 100, 7, "reading", 45, 3)]
+    res = generate(reqs, SETTINGS, {100: ClassRules(per_day_cap=1)}, {})
+    days = [p.weekday for p in res.placements]
+    assert len(days) == len(set(days))  # at most one per day
+
+
+def test_reports_unplaced_when_infeasible():
+    tight = GenSettings(working_days=[0], day_start=time(9), day_end=time(9, 45),
+                        per_day_default=3, break_min=0)
+    reqs = [LessonReq(1, 100, 7, "reading", 45, 3)]
+    res = generate(reqs, tight, {}, {})
+    assert len(res.placements) == 1
+    assert len(res.unplaced) == 2
+
+
+def test_teacher_unavailable_weekday():
+    reqs = [LessonReq(1, 100, 7, "reading", 45, 1)]
+    res = generate(reqs, SETTINGS, {}, {7: TeacherRule(unavailable_weekdays=[0, 1, 2, 3])})
+    assert res.placements[0].weekday == 4
+
+
+def test_per_day_window_restricts_placement():
+    from datetime import time
+    from app.apps.schedule.generator import ClassRules, GenSettings, LessonReq, generate
+
+    # Saturday (weekday 5) only open 10:00-11:00; a 45-min session must land there.
+    settings = GenSettings(
+        working_days=[5], day_start=time(9), day_end=time(18),
+        per_day_default=3, break_min=0,
+        day_windows={5: (time(10, 0), time(11, 0))},
+    )
+    reqs = [LessonReq(class_lesson_id=1, class_id=1, teacher_id=None,
+                      lesson_type="reading", duration_min=45, count=1)]
+    result = generate(reqs, settings, {1: ClassRules()}, {})
+    assert len(result.placements) == 1
+    p = result.placements[0]
+    assert p.weekday == 5
+    assert p.start == time(10, 0)
+    assert p.end == time(10, 45)
+
+
+def test_fixed_placement_is_occupied_and_deducted_from_count():
+    from datetime import time
+    from app.apps.schedule.generator import ClassRules, GenSettings, LessonReq, Placement, generate
+
+    # Pzt 09:00-11:00 penceresi, 60 dk ünite → iki slot: 09-10 ve 10-11.
+    settings = GenSettings(
+        working_days=[0], day_start=time(9), day_end=time(11),
+        per_day_default=5, break_min=0,
+    )
+    reqs = [LessonReq(class_lesson_id=1, class_id=1, teacher_id=None,
+                      lesson_type="reading", duration_min=60, count=2)]
+    fixed = [Placement(class_lesson_id=1, class_id=1, teacher_id=None,
+                       weekday=0, start=time(9), end=time(10))]
+    result = generate(reqs, settings, {1: ClassRules()}, {}, fixed=fixed)
+
+    # count=2, biri fixed → yalnız bir yeni yerleşim; tek boş slot 10:00-11:00
+    assert len(result.placements) == 1
+    p = result.placements[0]
+    assert (p.weekday, p.start, p.end) == (0, time(10), time(11))
+    # fixed çıktı içinde yok
+    assert all(pl.start != time(9) for pl in result.placements)

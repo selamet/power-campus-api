@@ -3,9 +3,7 @@
 from collections.abc import Awaitable, Callable
 
 from app.apps.classes.lessons import (
-    DEFAULT_SESSION_DURATION_MIN,
     LessonType,
-    default_lessons,
 )
 from app.apps.users.models import UserRole
 from app.apps.users.permissions import Permission
@@ -15,22 +13,6 @@ from .conftest import API, Headers
 
 Login = Callable[[str, str], Awaitable[Headers]]
 MakeUser = Callable[..., Awaitable[None]]
-
-
-def test_default_lessons_catalog() -> None:
-    rows = default_lessons()
-    assert [lt for lt, _, _ in rows] == [
-        LessonType.speaking,
-        LessonType.reading,
-        LessonType.writing,
-        LessonType.speaking_club,
-    ]
-    by_type = {lt: (spw, dur) for lt, spw, dur in rows}
-    assert by_type[LessonType.speaking] == (1, DEFAULT_SESSION_DURATION_MIN)
-    assert by_type[LessonType.reading] == (3, DEFAULT_SESSION_DURATION_MIN)
-    assert by_type[LessonType.writing] == (3, DEFAULT_SESSION_DURATION_MIN)
-    assert by_type[LessonType.speaking_club] == (3, DEFAULT_SESSION_DURATION_MIN)
-    assert DEFAULT_SESSION_DURATION_MIN == 60
 
 
 async def _create_term(client: AsyncClient, headers: Headers) -> int:
@@ -70,11 +52,11 @@ async def test_lesson_types_catalog_endpoint(
     assert [r["value"] for r in rows] == ["speaking", "reading", "writing", "speaking_club"]
     speaking = next(r for r in rows if r["value"] == "speaking")
     assert speaking["label"] == "Speaking"
-    assert speaking["defaultSessionsPerWeek"] == 1
-    assert speaking["defaultDurationMin"] == 60
+    assert "defaultSessionsPerWeek" not in speaking
+    assert "defaultDurationMin" not in speaking
 
 
-async def test_class_lessons_listed_with_weekly_total(
+async def test_class_lessons_listed(
     client: AsyncClient, admin: dict, login: Login
 ) -> None:
     headers = await login(admin["email"], admin["password"])
@@ -84,11 +66,10 @@ async def test_class_lessons_listed_with_weekly_total(
     assert lessons.status_code == 200
     body = {r["lessonType"]: r for r in lessons.json()}
     assert set(body) == {"speaking", "reading", "writing", "speaking_club"}
-    # Reading default: 3/week × 60 min = 180.
-    assert body["reading"]["sessionsPerWeek"] == 3
-    assert body["reading"]["sessionDurationMin"] == 60
-    assert body["reading"]["weeklyTotalMin"] == 180
     assert body["reading"]["lessonTypeLabel"] == "Reading"
+    assert "sessionsPerWeek" not in body["reading"]
+    assert "sessionDurationMin" not in body["reading"]
+    assert "weeklyTotalMin" not in body["reading"]
 
 
 async def test_add_lesson_allows_duplicate_type(
@@ -100,16 +81,15 @@ async def test_add_lesson_allows_duplicate_type(
     added = await client.post(
         f"{API}/classes/{klass['id']}/lessons",
         headers=headers,
-        json={"lessonType": "speaking", "sessionDurationMin": 45, "sessionsPerWeek": 2},
+        json={"lessonType": "speaking"},
     )
     assert added.status_code == 201, added.text
-    assert added.json()["weeklyTotalMin"] == 90
     listed = await client.get(f"{API}/classes/{klass['id']}/lessons", headers=headers)
     speaking = [r for r in listed.json() if r["lessonType"] == "speaking"]
     assert len(speaking) == 2  # the seeded one plus the new duplicate
 
 
-async def test_update_lesson_changes_fields_and_clears_teacher(
+async def test_update_lesson_changes_teacher(
     client: AsyncClient, admin: dict, login: Login
 ) -> None:
     headers = await login(admin["email"], admin["password"])
@@ -119,15 +99,14 @@ async def test_update_lesson_changes_fields_and_clears_teacher(
     lesson_id = (
         await client.get(f"{API}/classes/{klass['id']}/lessons", headers=headers)
     ).json()[0]["id"]
-    # Assign a teacher and change sessions.
+    # Assign a teacher.
     patched = await client.patch(
         f"{API}/classes/{klass['id']}/lessons/{lesson_id}",
         headers=headers,
-        json={"teacherId": teacher_id, "sessionsPerWeek": 5},
+        json={"teacherId": teacher_id},
     )
     assert patched.status_code == 200, patched.text
     assert patched.json()["teacherId"] == teacher_id
-    assert patched.json()["sessionsPerWeek"] == 5
     # Clear the teacher.
     cleared = await client.patch(
         f"{API}/classes/{klass['id']}/lessons/{lesson_id}",
@@ -158,20 +137,6 @@ async def test_delete_lesson_hard_deletes(
     assert len(remaining) == 3
 
 
-async def test_lesson_rejects_zero_or_negative(
-    client: AsyncClient, admin: dict, login: Login
-) -> None:
-    headers = await login(admin["email"], admin["password"])
-    term_id = await _create_term(client, headers)
-    klass = await _create_class(client, headers, term_id)
-    bad = await client.post(
-        f"{API}/classes/{klass['id']}/lessons",
-        headers=headers,
-        json={"lessonType": "writing", "sessionDurationMin": 0, "sessionsPerWeek": 1},
-    )
-    assert bad.status_code == 422
-
-
 async def test_lesson_inactive_teacher_rejected(
     client: AsyncClient, admin: dict, login: Login
 ) -> None:
@@ -185,8 +150,6 @@ async def test_lesson_inactive_teacher_rejected(
         json={
             "lessonType": "writing",
             "teacherId": inactive,
-            "sessionDurationMin": 60,
-            "sessionsPerWeek": 1,
         },
     )
     assert response.status_code == 422
@@ -208,7 +171,7 @@ async def test_lessons_require_write_permission(
     response = await client.post(
         f"{API}/classes/{klass['id']}/lessons",
         headers=reader,
-        json={"lessonType": "speaking", "sessionDurationMin": 60, "sessionsPerWeek": 1},
+        json={"lessonType": "speaking"},
     )
     assert response.status_code == 403
 
@@ -222,11 +185,8 @@ async def test_create_class_seeds_default_lessons(
     lessons = (
         await client.get(f"{API}/classes/{klass['id']}/lessons", headers=headers)
     ).json()
-    by_type = {r["lessonType"]: r for r in lessons}
-    assert set(by_type) == {"speaking", "reading", "writing", "speaking_club"}
-    assert by_type["speaking"]["sessionsPerWeek"] == 1
-    assert by_type["writing"]["sessionsPerWeek"] == 3
-    assert all(r["sessionDurationMin"] == 60 for r in lessons)
+    assert {l["lessonType"] for l in lessons} == {"speaking", "reading", "writing", "speaking_club"}
+    assert all("sessionDurationMin" not in l and "sessionsPerWeek" not in l for l in lessons)
 
 
 async def test_create_class_with_explicit_lessons(
@@ -239,16 +199,14 @@ async def test_create_class_with_explicit_lessons(
         headers,
         term_id,
         lessons=[
-            {"lessonType": "speaking", "sessionDurationMin": 90, "sessionsPerWeek": 2},
-            {"lessonType": "reading", "sessionDurationMin": 60, "sessionsPerWeek": 3},
+            {"lessonType": "speaking"},
+            {"lessonType": "reading"},
         ],
     )
     lessons = (
         await client.get(f"{API}/classes/{klass['id']}/lessons", headers=headers)
     ).json()
     assert {r["lessonType"] for r in lessons} == {"speaking", "reading"}
-    speaking = next(r for r in lessons if r["lessonType"] == "speaking")
-    assert speaking["weeklyTotalMin"] == 180
 
 
 async def test_create_class_with_inactive_lesson_teacher_rejected(
@@ -267,8 +225,6 @@ async def test_create_class_with_inactive_lesson_teacher_rejected(
                 {
                     "lessonType": "speaking",
                     "teacherId": inactive,
-                    "sessionDurationMin": 60,
-                    "sessionsPerWeek": 1,
                 }
             ],
         },
