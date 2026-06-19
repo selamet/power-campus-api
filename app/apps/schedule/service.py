@@ -9,12 +9,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 if TYPE_CHECKING:
     from app.apps.schedule.generator import LessonReq
 
-from app.apps.schedule.models import ScheduleConfig, ScheduleSession, TermScheduleSettings
+from app.apps.schedule.models import (
+    ScheduleConfig,
+    ScheduleRuleTemplate,
+    ScheduleSession,
+    TermScheduleSettings,
+)
 from app.apps.schedule.repository import ScheduleRepository
 from app.apps.schedule.schemas import (
     ApplyResult,
     GeneratePreview,
     ReportItem,
+    RuleTemplateCreate,
+    RuleTemplateOut,
     ScheduleConfigOut,
     ScheduleConfigUpdate,
     SessionCreate,
@@ -389,3 +396,24 @@ class ScheduleService:
         await self._session.commit()
         await self._session.refresh(obj)
         return self._session_out(obj)
+
+    async def list_rule_templates(self) -> list[RuleTemplateOut]:
+        rows = await self._repo.list_rule_templates()
+        return [RuleTemplateOut(id=t.id, name=t.name, rules=t.rules) for t in rows]
+
+    async def create_rule_template(self, payload: RuleTemplateCreate) -> RuleTemplateOut:
+        if await self._repo.get_rule_template_by_name(payload.name):
+            raise ConflictError("Bu isimde şablon var.")
+        obj = ScheduleRuleTemplate(name=payload.name, rules=payload.rules)
+        self._repo.add(obj)
+        await self._session.commit()
+        await self._session.refresh(obj)
+        return RuleTemplateOut(id=obj.id, name=obj.name, rules=obj.rules)
+
+    async def delete_rule_template(self, template_id: int) -> bool:
+        obj = await self._repo.get_rule_template(template_id)
+        if obj is None:
+            return False
+        await self._repo.delete_rule_template(obj)
+        await self._session.commit()
+        return True

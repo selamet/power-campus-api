@@ -98,3 +98,14 @@ class SessionMove(CamelModel):
 
 class SessionLock(CamelModel):
     locked: bool
+
+
+class RuleTemplateCreate(CamelModel):
+    name: str
+    rules: dict[str, Any] = Field(default_factory=dict)
+
+
+class RuleTemplateOut(CamelModel):
+    id: int
+    name: str
+    rules: dict[str, Any]

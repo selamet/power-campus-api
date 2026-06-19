@@ -7,6 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from app.apps.schedule.schemas import (
     ApplyResult,
     GeneratePreview,
+    RuleTemplateCreate,
+    RuleTemplateOut,
     ScheduleConfigOut,
     ScheduleConfigUpdate,
     SessionCreate,
@@ -125,3 +127,28 @@ async def lock_session(
         return await ScheduleService(session).set_lock(session_id, payload.locked)
     except ConflictError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.message) from exc
+
+
+@router.get("/schedule/rule-templates", response_model=list[RuleTemplateOut])
+async def list_rule_templates(session: SessionDep, _: CanRead) -> list[RuleTemplateOut]:
+    return await ScheduleService(session).list_rule_templates()
+
+
+@router.post(
+    "/schedule/rule-templates", response_model=RuleTemplateOut, status_code=status.HTTP_201_CREATED
+)
+async def create_rule_template(
+    payload: RuleTemplateCreate, session: SessionDep, _: CanWrite
+) -> RuleTemplateOut:
+    try:
+        return await ScheduleService(session).create_rule_template(payload)
+    except ConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.message) from exc
+
+
+@router.delete(
+    "/schedule/rule-templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_rule_template(template_id: int, session: SessionDep, _: CanWrite) -> Response:
+    await ScheduleService(session).delete_rule_template(template_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

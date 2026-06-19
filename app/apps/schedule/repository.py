@@ -9,7 +9,7 @@ from app.apps.schedule.models import ScheduleConfig, TermScheduleSettings
 
 if TYPE_CHECKING:
     from app.apps.classes.models import ClassLesson
-    from app.apps.schedule.models import ScheduleSession
+    from app.apps.schedule.models import ScheduleRuleTemplate, ScheduleSession
 
 
 class ScheduleRepository:
@@ -170,4 +170,28 @@ class ScheduleRepository:
         return await self.sessions_for_term(sub_class.term_id, None)
 
     async def delete_session(self, obj: "ScheduleSession") -> None:
+        await self._session.delete(obj)
+
+    async def list_rule_templates(self) -> list["ScheduleRuleTemplate"]:
+        from app.apps.schedule.models import ScheduleRuleTemplate
+
+        return list(
+            await self._session.scalars(
+                select(ScheduleRuleTemplate).order_by(ScheduleRuleTemplate.name)
+            )
+        )
+
+    async def get_rule_template_by_name(self, name: str) -> "ScheduleRuleTemplate | None":
+        from app.apps.schedule.models import ScheduleRuleTemplate
+
+        return await self._session.scalar(  # type: ignore[no-any-return]
+            select(ScheduleRuleTemplate).where(ScheduleRuleTemplate.name == name)
+        )
+
+    async def get_rule_template(self, template_id: int) -> "ScheduleRuleTemplate | None":
+        from app.apps.schedule.models import ScheduleRuleTemplate
+
+        return await self._session.get(ScheduleRuleTemplate, template_id)
+
+    async def delete_rule_template(self, obj: "ScheduleRuleTemplate") -> None:
         await self._session.delete(obj)
