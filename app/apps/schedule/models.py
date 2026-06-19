@@ -3,7 +3,7 @@
 from datetime import time
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import JSON, Boolean, ForeignKey, SmallInteger, Time, UniqueConstraint
+from sqlalchemy import JSON, Boolean, ForeignKey, SmallInteger, String, Time, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base import AuditedBase
@@ -70,3 +70,13 @@ class ScheduleSession(AuditedBase):
     locked: Mapped[bool] = mapped_column("locked", Boolean, default=False, nullable=False)
 
     class_lesson: Mapped["ClassLesson"] = relationship("ClassLesson", lazy="selectin")
+
+
+class ScheduleRuleTemplate(AuditedBase):
+    """A named, reusable builder rule-set (global, not term-scoped)."""
+
+    __tablename__ = "schedule_rule_templates"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column("name", String(120), unique=True, nullable=False)
+    rules: Mapped[dict[str, Any]] = mapped_column("rules", JSON, default=dict, nullable=False)

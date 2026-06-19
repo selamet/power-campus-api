@@ -2,7 +2,12 @@ from datetime import time
 
 import app.models  # noqa: F401
 import pytest
-from app.apps.schedule.models import ScheduleConfig, ScheduleSession, TermScheduleSettings
+from app.apps.schedule.models import (
+    ScheduleConfig,
+    ScheduleRuleTemplate,
+    ScheduleSession,
+    TermScheduleSettings,
+)
 from app.core.base import Base
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -57,4 +62,11 @@ async def test_schedule_tables_create_and_insert(tmp_path):
         rows = list((await s.execute(select(ScheduleSession).order_by(ScheduleSession.id))).scalars())
         assert rows[0].locked is False  # first record (no locked kwarg) uses default
         assert rows[1].locked is True
+    async with factory() as s:
+        s.add(ScheduleRuleTemplate(name="Standart", rules={"lessons": [], "closedWeekdays": [5, 6]}))
+        await s.commit()
+    async with factory() as s:
+        tpl = (await s.execute(select(ScheduleRuleTemplate))).scalar_one()
+        assert tpl.name == "Standart"
+        assert tpl.rules["closedWeekdays"] == [5, 6]
     await engine.dispose()
